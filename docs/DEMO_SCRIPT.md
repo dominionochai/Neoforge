@@ -53,5 +53,6 @@ Quick non-claims banner, then a pipeline map that doubles as dashboard nav.
 
 ## What is deliberately NOT in the demo
 - Any treatment or vaccine claim; any immunogenicity prediction; any
-  cross-patient data blending; TESLA benchmark results until the evaluation
-  harness is complete (shown as "pending" with the exact files and methodology).
+  cross-patient data blending. TESLA is shown only as audit evidence for the
+  ranking rule at cohort level (L4), never as validation of the case; the
+  benchmark page states its files, licensing and falsification clause verbatim.

@@ -157,7 +157,8 @@ vite.config.ts.timestamp-*
 .nx/migrate-runs
 
 # NEOFORGE local data: reference downloads and pipeline artifacts stay out of git
-data/
+# (root-anchored so the frontend's exported data projections remain tracked)
+/data/
 work/
 __pycache__/
 *.egg-info/
