@@ -110,7 +110,6 @@ def test_limit_subset_recorded_honestly(tmp_path: Path) -> None:
     payload = out["payload"]
     assert payload["predictions_made"] == 10  # 5 windows x 2 alleles
     assert payload["candidates_scored"] == 1
-    assert payload["wall_seconds"] >= 0
     note = payload["parameters"]["dev_note"]
     assert "first 5" in note and "of 14" in note
     assert sorted(payload["predictions"]["window_start"]) == [1, 1, 2, 2, 3, 3, 4, 4, 5, 5]

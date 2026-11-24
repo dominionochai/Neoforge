@@ -46,12 +46,26 @@ def main(argv: list[str] | None = None) -> int:
     if args.stage == "present":
         from neoforge.stages.present import run_present
 
-        return _emit_present(run_present(store, args.case, limit=args.limit))
+        result = run_present(store, args.case, limit=args.limit)
+        record = store.read_manifest(args.case)["stages"]["present"]
+        print(f"present: wall_seconds={record['wall_seconds']}")
+        return _emit_present(result)
     if args.stage == "prioritize":
         from neoforge.stages.prioritize import run_prioritize
 
         return _emit_prioritize(run_prioritize(store, args.case))
+    if args.stage == "report":
+        from neoforge.stages.report import run_report
+
+        return _emit_report(run_report(store, args.case))
     raise NotImplementedError(f"stage '{args.stage}' connects when implemented")
+
+
+def _emit_report(result: dict) -> int:
+    p = result["payload"]
+    print(f"report: artifact {result['artifact_id']} [{p['layer']}, evidence={p['evidence_kind']}]")
+    print(f"  shortlist: {len(p['shortlist'])} of {sum(p['tier_counts'].values())} candidates")
+    return 0
 
 
 def _emit_prioritize(result: dict) -> int:
@@ -64,8 +78,7 @@ def _emit_prioritize(result: dict) -> int:
 def _emit_present(result: dict) -> int:
     p = result["payload"]
     print(f"present: artifact {result['artifact_id']} [{p['layer']}, evidence={p['evidence_kind']}]")
-    print(f"  candidates scored: {p['candidates_scored']}; predictions made: {p['predictions_made']} "
-          f"in {p['wall_seconds']}s")
+    print(f"  candidates scored: {p['candidates_scored']}; predictions made: {p['predictions_made']}")
     return 0
 
 

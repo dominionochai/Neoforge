@@ -86,7 +86,6 @@ def run_present(store: ArtifactStore, case: str,
                 out["reference_peptide"].append(r["ref_window_seq"])
                 out["reference_mhcflurry_affinity_nm"].append(float(ref_row["affinity"]))
 
-    wall = round(time.time() - t0, 1)
     best: dict[str, float] = {}
     for i, key in enumerate(out["variant_key"]):
         best[key] = min(best.get(key, float("inf")), out["mhcflurry_affinity_nm"][i])
@@ -118,7 +117,6 @@ def run_present(store: ArtifactStore, case: str,
         ],
         "candidates_scored": len(best),
         "predictions_made": len(out["variant_key"]),
-        "wall_seconds": wall,
         "predictions": {"columns": list(out), **out, "uniqueness_key":
                         ["variant_key", "transcript_id", "peptide_length", "window_start", "allele"]},
         "best_affinity_by_candidate": best,
