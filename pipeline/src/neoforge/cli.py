@@ -30,6 +30,18 @@ def main(argv: list[str] | None = None) -> int:
         from neoforge.stages.variants import run_variants
 
         return _emit_selection(run_variants(store, args.case))
+    if args.stage == "translate":
+        from neoforge.sequence import IndexedFasta
+        from neoforge.stages.translate import run_translate
+
+        gtf = args.refs_dir / "gencode/gencode.v46.annotation.gtf.gz"
+        fasta_gz = args.refs_dir / "gencode/GRCh38.primary_assembly.genome.fa.gz"
+        genome = IndexedFasta(IndexedFasta.decompress_if_needed(fasta_gz, args.refs_dir / "gencode"))
+        result = run_translate(store, args.case, gtf, genome)
+        print(f"translate: artifact {result['artifact_id']}")
+        for key, value in result["payload"]["summary"].items():
+            print(f"  {key}: {value}")
+        return 0
     raise NotImplementedError(f"stage '{args.stage}' connects when implemented")
 
 
