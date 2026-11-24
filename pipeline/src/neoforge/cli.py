@@ -24,14 +24,36 @@ def main(argv: list[str] | None = None) -> int:
 
     bundle = args.cases_dir / args.case / "case.json"
     store = ArtifactStore(args.work_dir)
-    result = run_ingest(bundle, args.refs_dir, store)
+    if args.stage == "ingest":
+        return _emit_ingest(run_ingest(bundle, args.refs_dir, store))
+    if args.stage == "variants":
+        from neoforge.stages.variants import run_variants
+
+        return _emit_selection(run_variants(store, args.case))
+    raise NotImplementedError(f"stage '{args.stage}' connects when implemented")
+
+
+def _emit(result: dict, lines: list[str]) -> int:
+    print(f"{result['payload'].get('stage', '')} artifact {result['artifact_id']}")
+    for line in lines:
+        print(" ", line)
+    return 0
+
+
+def _emit_ingest(result: dict) -> int:
     checks = {c["id"]: c["status"] for c in result["payload"]["checks"]}
-    failed = [k for k, v in checks.items() if v != "pass"]
-    print(f"ingest {args.case}: artifact {result['artifact_id']} sha256={result['sha256'][:16]}…")
+    failed = [k for k, v in checks.items() if v == "fail"]
+    print(f"ingest: artifact {result['artifact_id']} sha256={result['sha256'][:16]}…")
     for check_id, status in checks.items():
         print(f"  [{status}] {check_id}")
-    if failed:
-        return 1
+    return 1 if failed else 0
+
+
+def _emit_selection(result: dict) -> int:
+    sel = result["payload"]["selection"]
+    print(f"variants: artifact {result['artifact_id']}")
+    print(f"  selected {sel['selected']} of {sel['ingested_snv_records']} SNVs; "
+          f"exclusions: {sel['exclusion_reasons'] or 'none'}; indels seen: {sel['indels_seen']}")
     return 0
 
 

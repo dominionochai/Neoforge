@@ -106,7 +106,7 @@ def _parse_vcf_table(reader: VcfReader, hc_index: IntervalIndex) -> tuple[dict, 
         chroms.append(rec.chrom)
         positions.append(rec.pos)
         refs.append(rec.ref)
-        alts.append(rec.alts[0])
+        alts.append(",".join(rec.alts))
         filter_tokens.append(";".join(rec.filters))
     table = {
         "columns": ["chrom", "pos", "ref", "alt", "filters", "tvaf", "nvaf", "tumor_depth"],
