@@ -28,10 +28,26 @@
       "path": "hla/cell-line-class1-mhc-alleles.csv",
       "sha256": "940e1d1a56be958c470332ef5ce4ba746241c062c95047e1f30a85e12c739860",
       "role": "HLA-I genotype source (OpenVax/TCLP)"
+    },
+    "expression_tpm_log2p1": {
+      "path": "ccle/hcc1395_expression_tpm_log2p1.csv",
+      "sha256": "c7f57c18e8c3a2bb86f769553fbdc53cd1241062e316837959ecf20dadef5daa",
+      "role": "L1: measured RNA expression, DepMap Public 23Q2 model ACH-000699 (HCC1395), verbatim row; values log2(TPM+1)"
+    },
+    "ensembl_entrez_map": {
+      "path": "ccle/biomart_ensembl_entrez.tsv",
+      "sha256": "1bd390e19458f0223ef019285410ad5639805182802474ac63efc9fff331a4d8",
+      "role": "crosswalk: Ensembl gene id -> Entrez (Ensembl BioMart, single documented query)"
     }
   },
   "hla": {
     "cell_line": "HCC1395",
     "note": "Published HLA-I genotype carries HLA-A LOH: a single A allele (HLA-A*29:02). Hence 5 alleles across 3 loci, not 6."
+  },
+  "expression": {
+    "depmap_id": "ACH-000699",
+    "cell_line": "HCC1395",
+    "matrix": "DepMap Public 23Q2 (figshare article 22765112), CC BY 4.0; matched normal HCC1395BL (ACH-002382) is absent from that RNA matrix",
+    "interpretation": "measured whole-cell-line gene TPM (cohort-free single-source quantity); the Tier-A gate treats TPM >= 1 as expression evidence"
   }
 }

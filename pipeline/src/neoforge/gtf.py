@@ -22,11 +22,12 @@ class GtfFormatError(ValueError):
 
 
 class TranscriptCds:
-    __slots__ = ("transcript_id", "chrom", "strand", "exons", "first_frame", "_cums")
+    __slots__ = ("transcript_id", "gene_id", "chrom", "strand", "exons", "first_frame", "_cums")
 
-    def __init__(self, transcript_id: str, chrom: str, strand: str,
+    def __init__(self, transcript_id: str, gene_id: str, chrom: str, strand: str,
                  exons: tuple[tuple[int, int], ...], first_frame: int) -> None:
         self.transcript_id = transcript_id
+        self.gene_id = gene_id
         self.chrom = chrom
         self.strand = strand
         self.exons = exons
@@ -76,7 +77,7 @@ class GtfTranscriptIndex:
     @classmethod
     def from_gtf(cls, path: str | Path) -> "GtfTranscriptIndex":
         cds_blocks: dict[str, list[tuple[int, int, int]]] = {}
-        meta: dict[str, tuple[str, str]] = {}
+        meta: dict[str, tuple[str, str, str]] = {}
         opener = gzip.open if Path(path).suffix == ".gz" else open
         with opener(path, "rt", encoding="utf-8") as handle:
             for lineno, line in enumerate(handle, start=1):
@@ -99,15 +100,15 @@ class GtfTranscriptIndex:
                     raise GtfFormatError(f"{path}:{lineno}: inverted block")
                 frame = 0 if cols[7] == "." else int(cols[7])
                 cds_blocks.setdefault(tid, []).append((start, end, frame))
-                meta[tid] = (cols[0], cols[6])
+                meta[tid] = (cols[0], cols[6], attrs.get("gene_id", ""))
 
         transcripts: dict[str, TranscriptCds] = {}
         for tid, blocks in cds_blocks.items():
-            chrom, strand = meta[tid]
+            chrom, strand, gene_id = meta[tid]
             ordered = tuple(sorted(blocks, reverse=(strand == "-")))
             coordinates = tuple((s, e) for s, e, _f in ordered)
             first_frame = ordered[0][2]
-            transcripts[tid] = TranscriptCds(tid, chrom, strand, coordinates, first_frame)
+            transcripts[tid] = TranscriptCds(tid, gene_id, chrom, strand, coordinates, first_frame)
         return cls(transcripts)
 
     def covering_transcripts(self, chrom: str, pos: int) -> list[str]:

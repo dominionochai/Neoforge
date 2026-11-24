@@ -22,6 +22,31 @@ from neoforge.vcf import VcfReader
 _HC_CONTAINMENT_MIN = 1.0
 
 
+def _parse_expression(refs_root: Path, inputs: dict, declare: dict) -> dict:
+    from neoforge import expression  # noqa: PLC0415 — keeps other stages' dep surface small
+
+    required = ("expression_tpm_log2p1", "ensembl_entrez_map")
+    missing = [n for n in required if n not in inputs]
+    if missing:
+        raise InputIntegrityError(f"expression inputs missing: {missing}")
+    ensg_by_entrez, ambiguous = expression.crosswalk(resolve_input(refs_root, inputs["ensembl_entrez_map"]))
+    depmap_id, tpm_by_gene, counts = expression.gene_tpm(
+        resolve_input(refs_root, inputs["expression_tpm_log2p1"]), ensg_by_entrez)
+    return {
+        "depmap_id": depmap_id,
+        "cell_line": declare.get("cell_line"),
+        "matrix": declare.get("matrix"),
+        "source": {"path": inputs["expression_tpm_log2p1"]["path"],
+                   "sha256": inputs["expression_tpm_log2p1"]["sha256"],
+                   "transform": "tpm = 2^v - 1 (source stores log2(TPM+1))"},
+        "crosswalk": {"path": inputs["ensembl_entrez_map"]["path"],
+                      "sha256": inputs["ensembl_entrez_map"]["sha256"],
+                      "ambiguous_entrez_dropped": ambiguous},
+        "tpm_by_gene": tpm_by_gene,
+        "counts": {**counts, "ambiguous_entrez": ambiguous},
+    }
+
+
 def sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -187,6 +212,22 @@ def run_ingest(bundle_path: Path, refs_root: Path, store: ArtifactStore) -> dict
                   "missing loci/alleles are not imputed",
     })
 
+    expression_block = None
+    if "expression_tpm_log2p1" in inputs:
+        expression_block = _parse_expression(refs_root, inputs, bundle.get("expression", {}))
+        counts = expression_block["counts"]
+        checks.append({
+            "id": "expression.source",
+            "status": "pass",
+            "detail": (
+                f"measured TPM for {expression_block['depmap_id']} "
+                f"({expression_block['cell_line']}): {len(expression_block['tpm_by_gene'])} genes; "
+                f"columns unmapped to Ensembl: {counts['unmapped_entrez']}; "
+                f"ambiguous crosswalk columns dropped: {counts['ambiguous_entrez']}; "
+                "single documented transform tpm = 2^(v) - 1"
+            ),
+        })
+
     payload = {
         "case": {
             "case_id": bundle["case_id"],
@@ -208,6 +249,7 @@ def run_ingest(bundle_path: Path, refs_root: Path, store: ArtifactStore) -> dict
             "resolved_alleles": [s.normalised for s in allele_statuses if s.wellformed],
             "source": {"path": inputs["hla_csv"]["path"], "sha256": allele_source.sha256},
         },
+        "expression": expression_block,
         "checks": checks,
     }
     artifact_id, digest = store.write(run, "ingest", payload)

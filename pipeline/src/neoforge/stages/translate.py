@@ -42,7 +42,7 @@ def run_translate(store, case: str, gtf_path, genome, *, peptide_lengths=(8, 9, 
     transcripts_hit: set[str] = set()
 
     cols = {
-        "variant_key": [], "transcript_id": [], "strand": [],
+        "variant_key": [], "transcript_id": [], "gene_id": [], "strand": [],
         "protein_pos": [], "ref_aa": [], "alt_aa": [],
         "peptide_length": [], "window_start": [], "mutant_offset": [],
         "window_seq": [], "ref_window_seq": [],
@@ -135,6 +135,7 @@ def run_translate(store, case: str, gtf_path, genome, *, peptide_lengths=(8, 9, 
                         continue
                     cols["variant_key"].append(key)
                     cols["transcript_id"].append(tid)
+                    cols["gene_id"].append(t.gene_id)
                     cols["strand"].append(t.strand)
                     cols["protein_pos"].append(one_based)
                     cols["ref_aa"].append(aa_ref)

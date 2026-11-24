@@ -93,19 +93,24 @@ def test_weak_binder_lands_in_tier_c(tmp_path: Path) -> None:
 
 def test_tier_a_requires_expression_and_passing_vafs(tmp_path: Path) -> None:
     factory = make_factory(lambda p: 120.0)
-    key = VARIANT[0] + f":{VARIANT[1]}{VARIANT[2]}>{VARIANT[3]}"
 
     out = run_prioritize(chain(tmp_path, factory, tvaf=0.55), "mini",
-                         expression={key: 5.0})
+                         expression={"G": 5.0})
     assert out["payload"]["tier_counts"] == {"A": 1}
 
     out = run_prioritize(chain(tmp_path, factory, name="work-prio-tvaf-low", tvaf=0.25),
-                         "mini", expression={key: 5.0})
+                         "mini", expression={"G": 5.0})
     assert out["payload"]["tier_counts"] == {"B": 1}
     assert as_rows(out["payload"])[0]["passes_vaf_gate"] is False
 
     out = run_prioritize(chain(tmp_path, factory, name="work-prio-tvaf-missing", tvaf=None), "mini",
-                         expression={key: 5.0})
+                         expression={"G": 5.0})
+
+    gene_absent = run_prioritize(chain(tmp_path, factory, tvaf=0.55), "mini",
+                                 expression={"OTHER": 9.0})
+    rows = as_rows(gene_absent["payload"])[0]
+    assert rows["expressed"] is None and rows["tier"] == "B"
+    assert "expression_gene_absent_from_measured_source" in rows["gate_flags"]
     assert out["payload"]["tier_counts"] == {"A": 1}
     assert "tumour_vaf_unavailable" in as_rows(out["payload"])[0]["gate_flags"]
 

@@ -55,7 +55,7 @@ def run_present(store: ArtifactStore, case: str,
         )
 
     out = {name: [] for name in [
-        "variant_key", "transcript_id", "peptide_length", "window_start",
+        "variant_key", "transcript_id", "gene_id", "peptide_length", "window_start",
         "allele", "peptide", "mhcflurry_affinity_nm",
         "mhcflurry_presentation_score", "mhcflurry_presentation_percentile",
         "reference_peptide", "reference_mhcflurry_affinity_nm",
@@ -76,6 +76,7 @@ def run_present(store: ArtifactStore, case: str,
                 mutant_row, ref_row = mutant_df.iloc[local_i], ref_df.iloc[local_i]
                 out["variant_key"].append(r["variant_key"])
                 out["transcript_id"].append(r["transcript_id"])
+                out["gene_id"].append(r["gene_id"])
                 out["peptide_length"].append(r["peptide_length"])
                 out["window_start"].append(r["window_start"])
                 out["allele"].append(allele)
@@ -118,7 +119,7 @@ def run_present(store: ArtifactStore, case: str,
         "candidates_scored": len(best),
         "predictions_made": len(out["variant_key"]),
         "predictions": {"columns": list(out), **out, "uniqueness_key":
-                        ["variant_key", "transcript_id", "peptide_length", "window_start", "allele"]},
+                        ["variant_key", "transcript_id", "gene_id", "peptide_length", "window_start", "allele"]},
         "best_affinity_by_candidate": best,
     }
     artifact_id, digest = store.write(run, "present", payload)

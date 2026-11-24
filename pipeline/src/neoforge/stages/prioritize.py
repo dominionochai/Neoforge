@@ -25,6 +25,9 @@ def run_prioritize(store, case: str, *,
                    strong_binder_nm: float = STRONG_BINDER_NM,
                    expressed_tpm: float = EXPRESSED_TPM,
                    min_tumour_vaf: float = MIN_TUMOUR_VAF) -> dict:
+    """`expression` maps an unversioned Ensembl gene id to measured TPM. When
+    None it is taken from the ingest artifact's DepMap block; a gene absent
+    from the measured source is flagged, and stays missing — never zero."""
     from neoforge.artifacts import StageRun  # noqa: PLC0415 — keeps stage dep surface small
 
     try:
@@ -39,7 +42,11 @@ def run_prioritize(store, case: str, *,
     rows = [dict(zip(cols, vals)) for vals in zip(*[predictions[c] for c in cols])]
 
     tvaf_by_key, depth_by_key = _measured_variant_features(selected)
-    expression = expression or {}
+    if expression is None:
+        expression = (store.load(case, "ingest").get("expression") or {}).get("tpm_by_gene", {}) or {}
+        expression_source = "ingest artifact (measured DepMap TPM)"
+    else:
+        expression_source = "caller-supplied gene TPM map"
 
     by_candidate: dict[str, list[dict]] = {}
     for r in rows:
@@ -61,9 +68,12 @@ def run_prioritize(store, case: str, *,
         best = min(cand_rows, key=lambda r: (r["mhcflurry_affinity_nm"], r["peptide"], r["allele"]))
         tvaf = tvaf_by_key.get(key)
         depth = depth_by_key.get(key)
-        tpm = expression.get(key)
+        gene_base = best["gene_id"].split(".", 1)[0]
+        tpm = expression.get(gene_base)
         flags: list[str] = []
         expressed = _gate(tpm, expressed_tpm, "expression_tpm_unavailable", flags)
+        if expressed is None and expression:
+            flags.append("expression_gene_absent_from_measured_source")
         passes_vaf = _gate(tvaf, min_tumour_vaf, "tumour_vaf_unavailable", flags)
         strong = best["mhcflurry_affinity_nm"] < strong_binder_nm
 
@@ -101,7 +111,7 @@ def run_prioritize(store, case: str, *,
         "min_tumour_vaf": min_tumour_vaf,
         "threshold_sources": ["pVACtools strong-binder convention", "TESLA recommended features"],
         "ordering": "tier ascending, then best mhcflurry_affinity_nm ascending",
-        "expression_source": "provided" if expression else "none provided",
+        "expression_source": expression_source if expression else "none available",
     }
     payload = {
         "parameters": parameters,
