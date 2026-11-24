@@ -1,0 +1,37 @@
+{
+  "case_id": "hcc1395",
+  "display_name": "HCC1395 / HCC1395BL somatic truth-set case",
+  "description": "Triple-negative breast cancer cell line HCC1395 and its matched EBV-immortalised B-lymphoblast normal HCC1395BL, published by the SEQC2 consortium as a reference tumour-normal pair with a high-confidence somatic truth set. Genomic truth-set validation case (layers L1/L2); never an immunogenicity validation.",
+  "genome_build": "GRCh38",
+  "pairing": {
+    "tumour": {"cell_line": "HCC1395", "type": "breast carcinoma, triple-negative"},
+    "normal": {"cell_line": "HCC1395BL", "type": "EBV-immortalised B-lymphoblast"}
+  },
+  "pairing_provenance": "Both lines derive from the same donor and are distributed as a matched pair by the SEQC2 Somatic Mutation Working Group; the truth VCFs were produced from their held-out sequencing datasets (v1.2.1 release).",
+  "input_files": {
+    "somatic_snv_vcf": {
+      "path": "seqc2/high-confidence_sSNV_in_HC_regions_v1.2.1.vcf.gz",
+      "sha256": "0c49f7e1519fc7860b773f79bdcf07453fe4def8303707f34542471d92494c9d",
+      "role": "L1: high-confidence somatic SNV truth set (39447 records)"
+    },
+    "somatic_indel_vcf": {
+      "path": "seqc2/high-confidence_sINDEL_in_HC_regions_v1.2.1.vcf.gz",
+      "sha256": "db7dc8be2ec04bab830ff1411146c7d538c217ff684e874b85d98a3dbbda91cf",
+      "role": "L1: high-confidence somatic INDEL truth set"
+    },
+    "hc_regions_bed": {
+      "path": "seqc2/High-Confidence_Regions_v1.2.bed",
+      "sha256": "dedaa36a956d6121fb8fccd9ae1891a4fefd608ff31ab277cb55d7c96bb4a6c4",
+      "role": "L1: high-confidence regions used to re-verify v1.2.1 containment independently"
+    },
+    "hla_csv": {
+      "path": "hla/cell-line-class1-mhc-alleles.csv",
+      "sha256": "940e1d1a56be958c470332ef5ce4ba746241c062c95047e1f30a85e12c739860",
+      "role": "HLA-I genotype source (OpenVax/TCLP)"
+    }
+  },
+  "hla": {
+    "cell_line": "HCC1395",
+    "note": "Published HLA-I genotype carries HLA-A LOH: a single A allele (HLA-A*29:02). Hence 5 alleles across 3 loci, not 6."
+  }
+}

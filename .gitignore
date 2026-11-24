@@ -155,3 +155,10 @@ vite.config.ts.timestamp-*
 .nx/cache
 .nx/workspace-data
 .nx/migrate-runs
+
+# NEOFORGE local data: reference downloads and pipeline artifacts stay out of git
+data/
+work/
+__pycache__/
+*.egg-info/
+.pytest_cache/
