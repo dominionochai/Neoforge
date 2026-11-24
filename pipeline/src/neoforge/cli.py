@@ -7,24 +7,34 @@ from pathlib import Path
 from neoforge import __version__
 from neoforge.artifacts import ArtifactStore
 
-STAGES = ("ingest", "variants", "translate", "present", "prioritize", "report")
+STAGES = ("ingest", "variants", "translate", "present", "prioritize", "report", "tesla_eval")
 
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="neoforge")
     ap.add_argument("--version", action="version", version=__version__)
     ap.add_argument("stage", choices=STAGES)
-    ap.add_argument("--case", required=True)
+    ap.add_argument("--case", help="case name; all stages except tesla_eval")
+    ap.add_argument("--tesla-xlsx", type=Path, help="tesla_eval: TESLA labels workbook (mmc4.xlsx)")
     ap.add_argument("--work-dir", type=Path, required=True)
     ap.add_argument("--cases-dir", type=Path, default=Path("cases"))
     ap.add_argument("--refs-dir", type=Path, required=True)
     ap.add_argument("--limit", type=int, help="dev: cap windows for the present stage")
     args = ap.parse_args(argv)
+    if args.stage == "tesla_eval":
+        if not args.tesla_xlsx:
+            ap.error("tesla_eval requires --tesla-xlsx (TESLA mmc4.xlsx labels workbook)")
+    elif not args.case:
+        ap.error(f"--case is required for stage '{args.stage}'")
 
     from neoforge.stages.ingest import run_ingest  # noqa: PLC0415 — stages import lazily
 
-    bundle = args.cases_dir / args.case / "case.json"
     store = ArtifactStore(args.work_dir)
+    if args.stage == "tesla_eval":
+        from neoforge.evaluation.tesla import run_tesla_evaluation
+
+        return _emit_tesla(run_tesla_evaluation(store, args.tesla_xlsx))
+    bundle = args.cases_dir / args.case / "case.json"
     if args.stage == "ingest":
         return _emit_ingest(run_ingest(bundle, args.refs_dir, store))
     if args.stage == "variants":
@@ -59,6 +69,22 @@ def main(argv: list[str] | None = None) -> int:
 
         return _emit_report(run_report(store, args.case))
     raise NotImplementedError(f"stage '{args.stage}' connects when implemented")
+
+
+def _emit_tesla(result: dict) -> int:
+    p = result["payload"]
+    m = p["metrics"]
+    verdict = "FALSIFIED" if p["rank_rule_falsified"] else "not falsified"
+    print(f"tesla_eval: artifact {result['artifact_id']} [{p['layer']}, evidence={p['evidence_kind']}]")
+    print(f"  candidates: {m['n_candidates']} ({m['n_validated']} validated) across "
+          f"{m['n_patients']} patients / {m['n_alleles']} alleles")
+    print(f"  ttif_top20pct: {m['ttif_top20pct']:.3f} (random {m['ttif_random_expectation']:.3f}, "
+          f"oracle {m['ttif_oracle']:.3f})")
+    print(f"  auprc: {m['auprc']:.3f} (random {m['auprc_random_expectation']:.3f}, "
+          f"oracle {m['auprc_oracle']:.3f})")
+    print(f"  median rank of validated: {m['median_rank_of_validated']}")
+    print(f"  falsification verdict ({p['parameters']['falsification_clause']}): {verdict}")
+    return 0
 
 
 def _emit_report(result: dict) -> int:

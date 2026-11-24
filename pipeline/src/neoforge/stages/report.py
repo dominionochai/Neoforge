@@ -8,7 +8,9 @@ hashes identically on a rerun with identical inputs). Sections:
 - shortlist: top-ranked candidates from the prioritize artifact, in its own
   documented order, each with every supporting feature and its evidence kind;
 - evidence ledger: what was measured (L1), derived (L2), predicted (L3) —
-  and what does not exist yet (L4 experimental immunogenicity: pending);
+  and what does not exist for the candidates (L4 experimental immunogenicity:
+  candidate-level pending; cohort-level ranking-rule audit referenced when the
+  tesla_eval artifact exists in this store);
 - uncertainty register: warnings, missing-feature flags and scope exclusions
   lifted verbatim from upstream artifacts;
 - what_science_would_confirm: the specific observations that would support or
@@ -57,7 +59,8 @@ def run_report(store, case: str, *, shortlist_size: int = 10) -> dict:
                  for vals in zip(*[candidates[c] for c in cols])][:shortlist_size]
 
     snv_counters = ing["vcf"]["somatic_snv_vcf"]["counters"]
-    ledger = _ledger(ing, var, tra, pre)
+    tesla_ref = _tesla_reference(store)
+    ledger = _ledger(ing, var, tra, pre, tesla_ref)
 
     payload = {
         "parameters": {"shortlist_size": shortlist_size, "stages_read": list(UPSTREAM)},
@@ -65,7 +68,8 @@ def run_report(store, case: str, *, shortlist_size: int = 10) -> dict:
         "layer": "L1+L2+L3",
         "non_claims": [
             "this report is a research summary, not a treatment recommendation",
-            "no immunogenicity of any candidate is claimed; L4 evidence is pending",
+            "no immunogenicity of any candidate is claimed; candidate-level L4 evidence "
+            "is pending (TESLA, when run, audits the ranking rule at cohort level only)",
         ],
         "case": ing["case"],
         "provenance_chain": {s: {"artifact_id": manifest["stages"][s]["artifact_id"],
@@ -87,7 +91,7 @@ def run_report(store, case: str, *, shortlist_size: int = 10) -> dict:
         "tier_counts": pri["tier_counts"],
         "prioritisation_rule": pri["parameters"],
         "shortlist": shortlist,
-        "uncertainty_register": _uncertainty(ing, var, pri),
+        "uncertainty_register": _uncertainty(ing, var, pri, tesla_ref),
         "what_science_would_confirm": WHAT_SCIENCE_WOULD_CONFIRM,
         "research_report_md": None,
     }
@@ -101,7 +105,7 @@ def run_report(store, case: str, *, shortlist_size: int = 10) -> dict:
     return {"artifact_id": artifact_id, "sha256": digest, "payload": payload}
 
 
-def _ledger(ing: dict, var: dict, tra: dict, pre: dict) -> dict:
+def _ledger(ing: dict, var: dict, tra: dict, pre: dict, tesla_ref: dict | None) -> dict:
     snv = ing["vcf"]["somatic_snv_vcf"]["counters"]
     return {
         "L1_measured": {
@@ -134,16 +138,20 @@ def _ledger(ing: dict, var: dict, tra: dict, pre: dict) -> dict:
             "predictions_made": pre["predictions_made"],
             "note": "MHC binding and presentation predictions only",
         },
+        "tesla_cohort_reference": tesla_ref,
         "L4_experimental": {
             "kind": "missing",
             "status": "PENDING",
-            "note": "no TESLA or other experimental immunogenicity labels are evaluated "
-                    "in this run; no experimental immunogenicity claim exists for any candidate",
+            "note": "no experimental immunogenicity label exists for any candidate of this "
+                    "case" + ("; cohort-level audit of the ranking rule itself: see "
+                              "tesla_cohort_reference (TESLA benchmark, separate case)"
+                              if tesla_ref else
+                              "; TESLA ranking-rule audit not yet run in this store"),
         },
     }
 
 
-def _uncertainty(ing: dict, var: dict, pri: dict) -> list[dict]:
+def _uncertainty(ing: dict, var: dict, pri: dict, tesla_ref: dict | None) -> list[dict]:
     findings: list[dict] = []
     for check in ing["checks"]:
         if check["status"] != "pass":
@@ -160,10 +168,36 @@ def _uncertainty(ing: dict, var: dict, pri: dict) -> list[dict]:
         findings.append({"source": f"prioritize.{flag}", "status": "warn",
                          "detail": f"gate input missing for {count} candidate(s); "
                                    "gate recorded as missing, not passed"})
-    findings.append({"source": "L4_experimental", "status": "warn",
-                     "detail": "no experimental immunogenicity evaluation yet (TESLA label "
-                               "evaluation, EVALUATION_PLAN.md, is pending)"})
+    if tesla_ref:
+        findings.append({"source": "L4_experimental", "status": "info",
+                         "detail": "the priority ranking rule was audited on the TESLA "
+                                   f"benchmark (608 pMHC, 37 validated): TTIF top-20% "
+                                   f"{tesla_ref['ttif_top20pct']:.3f} vs random "
+                                   f"{tesla_ref['ttif_random_expectation']:.3f}"
+                                   + ("; ranking rule NOT falsified" if not tesla_ref["rank_rule_falsified"]
+                                      else "; ranking rule FALSIFIED")
+                                   + " — cohort-level evidence about the rule, not about this case"})
+    else:
+        findings.append({"source": "L4_experimental", "status": "warn",
+                         "detail": "no experimental immunogenicity evaluation yet (TESLA label "
+                                   "evaluation, EVALUATION_PLAN.md, is pending)"})
     return findings
+
+
+def _tesla_reference(store) -> dict | None:
+    man = store.read_manifest("tesla")
+    rec = man["stages"].get("tesla_eval")
+    if rec is None:
+        return None
+    t = store.load("tesla", "tesla_eval")
+    m = t["metrics"]
+    return {"artifact_id": rec["artifact_id"], "sha256": rec["sha256"],
+            "n_candidates": m["n_candidates"], "n_validated": m["n_validated"],
+            "ttif_top20pct": m["ttif_top20pct"],
+            "ttif_random_expectation": m["ttif_random_expectation"],
+            "auprc": m["auprc"], "auprc_random_expectation": m["auprc_random_expectation"],
+            "rank_rule_falsified": t["rank_rule_falsified"],
+            "scope": "cohort-level audit of the ranking rule — not about any project case"}
 
 
 def _render_markdown(payload: dict) -> str:

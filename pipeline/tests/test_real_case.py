@@ -31,7 +31,7 @@ pytestmark = [
 ]
 
 REFS = Path(os.environ.get("NEOFORGE_REFS", "/workspace/refs"))
-REPO = Path(os.environ.get("NEOFORGE_REPO", Path(__file__).resolve().parents[3]))
+REPO = Path(os.environ.get("NEOFORGE_REPO", Path(__file__).resolve().parents[2]))
 BUNDLE = REPO / "cases/hcc1395/case.json"
 WORK = Path(os.environ.get("NEOFORGE_WORK", REPO / "work"))
 

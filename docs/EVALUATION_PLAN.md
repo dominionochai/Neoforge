@@ -49,14 +49,17 @@ MHCflurry (Cell Systems 2018; Cell Systems 2020) is used with full citation.
 **Falsifies:** a known ligand scored weak or an unnormalised allele yielding
 silently different results across runs.
 
-## L4 — Immunogenicity: external benchmark of the ranking layer (PENDING)
+## L4 — Immunogenicity: external benchmark of the ranking layer (executed — see status below)
 
 **Data:** TESLA (Wells et al., *Cell* 2020) — file `mmc4.xlsx`
 (`master-bindings-selected`): 608 candidate pMHC across 6 melanoma patients,
 **37 experimentally validated immunogenic** (tetramer/T-cell assays; the
 `VALIDATED` column); plus `mmc7.xlsx` (independent 310-peptide TIL cohort,
 4 validated). Files and SHA-256 recorded in `DATA_PROVENANCE.md`. Ingest code +
-licence note + evaluation harness are **pending** — marked so everywhere.
+licence note + evaluation harness are implemented: `neoforge/evaluation/tesla.py`,
+CLI stage `tesla_eval` (artifact case `tesla`, kept strictly separate from any
+project case). The harness refuses unsupported alleles rather than imputing
+predictions, and records its falsification verdict either way.
 **Metrics:** TESLA-standard TTIF (top-20 immunogenic fraction), fraction ranked,
 AUPRC; our ranking (using only features our pipeline computes for its own cases:
 predicted binding, available measured features) vs. two baselines:
@@ -95,8 +98,20 @@ Executed against the real HCC1395/SEQC2 case (branch state at this commit):
   predicted binder), 84 Tier C, **0 Tier A** — because the expression source is
   not wired into this run yet, the Tier-A gate records `missing`, which can
   never silently pass. VAF gate evaluated on measured SEQC2 `TVAF` values.
-- **L4 immunogenicity:** still **PENDING** (TESLA ingest + metric harness not
-  built). Marked pending in the report artifact and its uncertainty register.
+- **L4 immunogenicity (ranking-rule audit on TESLA):** executed on the real
+  benchmark — 608 pMHC (37 VALIDATED) from 6 patients / 13 class-I alleles,
+  scored by the same unmodified per-allele MHCflurry wrapper (608×13 pairs where
+  applicable; ~14 s). Ranking = ascending predicted affinity. Results:
+  **TTIF top-20% = 0.541** vs random expectation 0.200 (2.7× enrichment;
+  oracle headroom 1.0); **AUPRC = 0.153** vs random expectation 0.061;
+  median rank of validated = 116 of 608; `rank_rule_falsified = False`
+  recorded inside the `tesla_eval` artifact (`7adbb53cb1d56ee4`). Honesty
+  notes: n=37 positives → wide confidence intervals; this is cohort-level
+  evidence about the *ranking rule*, never a patient-level or candidate-level
+  immunogenicity claim; candidate-level L4 evidence remains absent by design.
+  The report stage embeds this reference (`tesla_cohort_reference`) only when
+  the tesla_eval artifact exists in the store, and its uncertainty register
+  reports the audit as `info` — verdict included verbatim.
 - **Determinism:** six-stage CLI end-to-end test (`test_pipeline_e2e.py`) reruns
   the whole chain and requires hash-identical artifacts — passing on the real
   case, including a hash-identical report with its exportable Markdown.

@@ -80,8 +80,9 @@ def test_report_projects_the_chain_honestly(tmp_path: Path) -> None:
     assert ledger["L3_predicted"]["kind"] == "predicted"
     assert ledger["L4_experimental"] == {
         "kind": "missing", "status": "PENDING",
-        "note": "no TESLA or other experimental immunogenicity labels are evaluated "
-                "in this run; no experimental immunogenicity claim exists for any candidate"}
+        "note": "no experimental immunogenicity label exists for any candidate of this case; "
+                "TESLA ranking-rule audit not yet run in this store"}
+    assert ledger["tesla_cohort_reference"] is None
 
     sources = [f["source"] for f in p["uncertainty_register"]]
     assert "ingest.demo.warn_check" in sources

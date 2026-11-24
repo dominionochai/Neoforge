@@ -41,7 +41,7 @@ analysis for TCGA cases is therefore **not presented**, rather than combining
 HLA from one source with mutations from another. GDC token access would unlock
 it (documented path), but honesty first.
 
-## 3. TESLA external benchmark (evaluations pending)
+## 3. TESLA external benchmark (ranking-rule audit executed see EVALUATION_PLAN.md; candidate-level immunogenicity: not claimed)
 
 | File | Content | SHA-256 |
 |---|---|---|
