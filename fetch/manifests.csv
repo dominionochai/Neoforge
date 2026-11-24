@@ -9,3 +9,4 @@ tesla/mmc1.xlsx,https://ars.els-cdn.com/content/image/1-s2.0-S0092867420311569-m
 tesla/mmc4.xlsx,https://ars.els-cdn.com/content/image/1-s2.0-S0092867420311569-mmc4.xlsx,5cd384753464e981712af15dffa3b8cb5a3c2c5026e8cd80894a17f9df6236fe,L4 benchmark: 608 pMHC, 37 validated immunogenic
 tesla/mmc5.xlsx,https://ars.els-cdn.com/content/image/1-s2.0-S0092867420311569-mmc5.xlsx,0e502d9d2fc8f0f366bb8ad1612e9685de739a8169d13c5de7ee95f937dd0aba,L4 per-team evaluation baselines
 tesla/mmc7.xlsx,https://ars.els-cdn.com/content/image/1-s2.0-S0092867420311569-mmc7.xlsx,7a1475a88449457473993de53e347f219a3c2df194b8de4580278cf516a09b6a,L4 independent validation cohort
+gencode/gencode.v46.pc_translations.fa.gz,https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_46/gencode.v46.pc_translations.fa.gz,80a066d4d278f36dd3971e2c0f3fb9d1c74f8ae8fd5b59321ef8d66060bc039e,L2 validation: GENCODE official protein translations

@@ -162,11 +162,13 @@ def run_ingest(bundle_path: Path, refs_root: Path, store: ArtifactStore) -> dict
                       f"multi-base REF spans crossing an interval edge: {counters['ref_span_outside_hc_regions']} (observed, not gated)"
                       + (f"; outside-positions: {counters['outside_hc_regions'][:5]}" if counters["outside_hc_regions"] else ""),
         })
+        counters_clean = {k: v for k, v in counters.items() if k != "outside_hc_regions"}
+        counters_clean["outside_hc_region_positions"] = len(counters["outside_hc_regions"])
         per_vcf[name] = {
             "file_format": meta.file_format,
             "reference_declared": meta.reference,
             "n_header_lines": meta.n_header_lines,
-            "counters": {k: v for k, v in counters.items() if k != "outside_hc_regions"},
+            "counters": counters_clean,
         }
         tables[name] = table
 

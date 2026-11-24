@@ -14,7 +14,7 @@ import pytest
 from neoforge.artifacts import ArtifactStore, StageRun
 from neoforge.gtf import GtfTranscriptIndex
 from neoforge.sequence import InMemoryGenome
-from neoforge.translate import CODON_TABLE, complement, run_translate
+from neoforge.stages.translate import CODON_TABLE, complement, run_translate
 
 PROTEIN1 = "MSKFEKTGKLVVQKRFLGSPPGCVAVAATIS"  # 31 aa, codon-exact (93 nt CDS)
 # Exclude codons whose reverse complement is a stop, so both strand orientations
