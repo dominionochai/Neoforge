@@ -18,6 +18,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--work-dir", type=Path, required=True)
     ap.add_argument("--cases-dir", type=Path, default=Path("cases"))
     ap.add_argument("--refs-dir", type=Path, required=True)
+    ap.add_argument("--limit", type=int, help="dev: cap windows for the present stage")
     args = ap.parse_args(argv)
 
     from neoforge.stages.ingest import run_ingest  # noqa: PLC0415 — stages import lazily
@@ -45,7 +46,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.stage == "present":
         from neoforge.stages.present import run_present
 
-        return _emit_present(run_present(store, args.case))
+        return _emit_present(run_present(store, args.case, limit=args.limit))
     raise NotImplementedError(f"stage '{args.stage}' connects when implemented")
 
 
