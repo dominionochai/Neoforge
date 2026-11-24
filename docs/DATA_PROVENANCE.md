@@ -16,12 +16,15 @@ tumour–normal pair. Every input traces to that pair; no cross-patient merging.
 | SNV truth set (39,447 SNVs, v1.2.1) | NCBI ReferenceSamples / SEQC2 Somatic Mutation WG | `https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/seqc/Somatic_Mutation_WG/release/latest/high-confidence_sSNV_in_HC_regions_v1.2.1.vcf.gz` | `0c49f7e1519fc7860b773f79bdcf07453fe4def8303707f34542471d92494c9d` | US Govt public data |
 | INDEL truth set (v1.2.1) | same directory | `.../high-confidence_sINDEL_in_HC_regions_v1.2.1.vcf.gz` | `db7dc8be2ec04bab830ff1411146c7d538c217ff684e874b85d98a3dbbda91cf` | US Govt public data |
 | High-confidence regions BED | same directory | `.../High-Confidence_Regions_v1.2.bed` | `dedaa36a956d6121fb8fccd9ae1891a4fefd608ff31ab277cb55d7c96bb4a6c4` | US Govt public data |
-| HLA-I genotype (5 alleles; HLA-A LOH documented) | OpenVax/TCLP `cell-line-class1-mhc-alleles.csv` (HCC1395 row) | `https://github.com/openvax/cancer-cell-line-mhc-alleles/blob/master/cell-line-class1-mhc-alleles.csv` | pinned at fetch time | public repository (cite TCLP) |
+| HLA-I genotype (5 alleles; HLA-A LOH documented) | OpenVax/TCLP `cell-line-class1-mhc-alleles.csv` (HCC1395 row) | `https://github.com/openvax/cancer-cell-line-mhc-alleles/blob/master/cell-line-class1-mhc-alleles.csv` | `940e1d1a56be958c470332ef5ce4ba746241c062c95047e1f30a85e12c739860` | public repository (cite TCLP) |
 | Expression (TPM) | CCLE / DepMap, HCC1395 | DepMap portal (CC BY 4.0) | pinned at fetch time | CC BY 4.0 |
-| Reference genome + gene model | GENCODE v46 | `gencode.v46.basic.annotation.gtf.gz` (28 MB) + `GRCh38.p14.genome.fa.gz` (855 MB) | pinned at fetch time | GENCODE free-use |
+| Reference genome + gene model | GENCODE v46 | `gencode.v46.annotation.gtf.gz` (51,006,804 bytes; sha256 `82b0e52bc4956486528152e3850660b3c41767ab103d87949e41d38f92ef8b38`, MD5 verified vs GENCODE MD5SUMS) + `GRCh38.primary_assembly.genome.fa.gz` (845,635,028 bytes; sha256 `ada8bcedcd6ed9359f56778f2430375eddd5580cc4f35b6e581b53422f7035a8`, MD5 verified) + `gencode.v46.pc_translations.fa.gz` (sha256 `80a066d4d278f36dd3971e2c0f3fb9d1c74f8ae8fd5b59321ef8d66060bc039e`, MD5 verified) | verified at fetch time | GENCODE free-use |
 
-**Known limitation for this case:** the truth VCFs carry caller-consensus INFO
-fields only — no tumour VAF. VAF is reported as *unavailable* (never imputed).
+**VAF availability (corrected after fetching the files):** the truth VCFs
+do carry measured tumour allele fraction in the `TVAF=` INFO field (plus
+`NVAF` and `bwaDP` depths). An earlier version of this document claimed "no
+tumour VAF"; that was wrong and the pipeline now reads measured `TVAF` directly
+(reported exactly as in the source; `None` stays *unavailable*, never imputed).
 
 ## 2. Context view — TCGA-SKCM (open tier, single real patients, never merged)
 

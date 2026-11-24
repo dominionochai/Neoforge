@@ -104,7 +104,14 @@ flags. This can never masquerade as an immunogenicity score.
 - Published HLA-I genotype (OpenVax/TCLP): `HLA-A*29:02` (single A allele —
   HLA-A LOH documented in the cell line), `HLA-B*08:01`, `HLA-B*45:01`,
   `HLA-C*06:02`, `HLA-C*07:01`.
-- SEQC2 truth VCFs carry caller-consensus INFO but **no tumour VAF**; VAF will be
-  reported as unavailable for this case unless BAM pileups are added.
+- Correction (verified on the fetched files): the SEQC2 truth VCFs **do carry
+  tumour VAF** in the `TVAF=` INFO field (alongside `NVAF` and `bwaDP` depths).
+  The earlier note claiming "no tumour VAF" was wrong. The Tier-A VAF gate uses
+  these measured values (and only these): never imputed, unavailable stays
+  unavailable.
+- Audited v1.2 release: all 39,447 SNV truth positions are contained in the
+  high-confidence regions BED, but 23 of 1,625 INDEL positions fall outside it
+  (e.g. chr1:48903925; first gap at [48903919, 48903940)) — recorded as an
+  honest `warn` audit finding, not hidden.
 - HCC1395/SEQC2 is a **genomic truth-set validation case only** (L1/L2). It is
   never described as immunogenicity validation.

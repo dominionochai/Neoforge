@@ -75,3 +75,28 @@ falsified and must be revised or presented as exploratory with the failure shown
 
 Full rerun-from-artifacts test: identical inputs → identical SHA-256s on all
 artifact outputs (documented seeds, fixed tool versions).
+
+## Status of this plan (prototype results recorded here)
+
+Executed against the real HCC1395/SEQC2 case (branch state at this commit):
+
+- **L1 ingestion/audit:** 39,447 SNV truth positions 100% contained in the v1.2
+  high-confidence regions (its own release claim, independently re-verified);
+  23/1,625 INDEL truth positions fall outside those regions — recorded as an
+  honest `warn`, never hidden (the release README does not mention this).
+- **L2 derivation:** all **41,189/41,189** derived reference windows plus mutant
+  windows equal slices of the GENCODE v46 official protein translations
+  (independent check in `test_real_case.py`), including exon-junction codons on
+  both strands. Zero unmatched, zero unknown transcripts.
+- **L3 prediction:** MHCflurry 2.4.0 (models release 2.3.0) run per-allele on
+  41,189 windows x 5 HLA alleles = 205,945 paired mutant/reference prediction
+  rows (~164 s). Wrapper-only use; no scores re-implemented.
+- **L1+L3 ranking (prioritize):** 329 candidate mutations → 245 Tier B (strong
+  predicted binder), 84 Tier C, **0 Tier A** — because the expression source is
+  not wired into this run yet, the Tier-A gate records `missing`, which can
+  never silently pass. VAF gate evaluated on measured SEQC2 `TVAF` values.
+- **L4 immunogenicity:** still **PENDING** (TESLA ingest + metric harness not
+  built). Marked pending in the report artifact and its uncertainty register.
+- **Determinism:** six-stage CLI end-to-end test (`test_pipeline_e2e.py`) reruns
+  the whole chain and requires hash-identical artifacts — passing on the real
+  case, including a hash-identical report with its exportable Markdown.

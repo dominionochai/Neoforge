@@ -1,6 +1,6 @@
 # NEOFORGE
 
-Personalised neoantigen **research-support** prototype: an original, repoducible
+Personalised neoantigen **research-support** prototype: an original, reproducible
 computational pipeline that takes a documented tumour-normal case, derives
 mutant peptides from the reference genome and gene model, scores predicted MHC-I
 presentation with a published open-source predictor, and prioritises candidates
