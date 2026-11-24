@@ -1,0 +1,11 @@
+name,url,sha256,role
+seqc2_sSNV_truth,https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/seqc/Somatic_Mutation_WG/release/latest/high-confidence_sSNV_in_HC_regions_v1.2.1.vcf.gz,0c49f7e1519fc7860b773f79bdcf07453fe4def8303707f34542471d92494c9d,L1 truth set
+seqc2_sINDEL_truth,https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/seqc/Somatic_Mutation_WG/release/latest/high-confidence_sINDEL_in_HC_regions_v1.2.1.vcf.gz,db7dc8be2ec04bab830ff1411146c7d538c217ff684e874b85d98a3dbbda91cf,L1 truth set
+seqc2_HC_regions,https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/seqc/Somatic_Mutation_WG/release/latest/High-Confidence_Regions_v1.2.bed,dedaa36a956d6121fb8fccd9ae1891a4fefd608ff31ab277cb55d7c96bb4a6c4,L1 truth set
+tesla_mmc1_dictionary,https://ars.els-cdn.com/content/image/1-s2.0-S0092867420311569-mmc1.xlsx,e4b230a0b09b908dc87714ba509beacff15d7e1c77c5699f51b1d1e838baab28,L4 benchmark dictionary
+tesla_mmc4_selected,https://ars.els-cdn.com/content/image/1-s2.0-S0092867420311569-mmc4.xlsx,5cd384753464e981712af15dffa3b8cb5a3c2c5026e8cd80894a17f9df6236fe,L4 benchmark: 608 pMHC, 37 validated immunogenic
+tesla_mmc5_team_baseline,https://ars.els-cdn.com/content/image/1-s2.0-S0092867420311569-mmc5.xlsx,0e502d9d2fc8f0f366bb8ad1612e9685de739a8169d13c5de7ee95f937dd0aba,L4 baseline context
+tesla_mmc7_validation,https://ars.els-cdn.com/content/image/1-s2.0-S0092867420311569-mmc7.xlsx,7a1475a88449457473993de53e347f219a3c2df194b8de4580278cf516a09b6a,L4 independent cohort
+gencode_v46_basic,https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_46/gencode.v46.basic.annotation.gtf.gz,pinned_at_fetch,L2 gene model
+grch38_p14_genome,https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_46/GRCh38.p14.genome.fa.gz,pinned_at_fetch,L2 reference sequence
+openvax_hcc1395_hla,https://raw.githubusercontent.com/openvax/cancer-cell-line-mhc-alleles/master/cell-line-class1-mhc-alleles.csv,pinned_at_fetch,demo-case HLA
