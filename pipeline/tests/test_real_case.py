@@ -11,8 +11,10 @@ those are absent (paths overridable via NEOFORGE_REFS / NEOFORGE_WORK):
 """
 from __future__ import annotations
 
+import csv
 import gzip
 import json
+import re
 import os
 from pathlib import Path
 
@@ -90,3 +92,80 @@ def test_real_translation_matches_gencode_proteins() -> None:
         checked += 1
     assert not unknown
     assert checked > 0
+
+
+SKCM_BUNDLE = REPO / "cases/skcm_d9a3z1/case.json"
+SKCM_MAF = REFS / "tcga/d9a3z1.wxs.aliquot_ensemble_masked.maf.gz"
+
+_THREE1 = {"Ala": "A", "Arg": "R", "Asn": "N", "Asp": "D", "Cys": "C", "Gln": "Q", "Glu": "E",
+           "Gly": "G", "His": "H", "Ile": "I", "Leu": "L", "Lys": "K", "Met": "M", "Phe": "F",
+           "Pro": "P", "Ser": "S", "Thr": "T", "Trp": "W", "Tyr": "Y", "Val": "V", "Ter": "*"}
+_HGVP = re.compile(r"^p\.([A-Z][a-z]{2})(\d+)([A-Z][a-z]{2})$")
+
+
+def test_real_skcm_ingest_same_patient_and_boundary(tmp_path: Path) -> None:
+    store = ArtifactStore(tmp_path / "work")
+    run = run_ingest(SKCM_BUNDLE, REFS, store)
+    checks = {c["id"]: c["status"] for c in run["payload"]["checks"]}
+    assert checks["somatic_maf.same_patient"] == "pass"
+    assert checks["hla.unavailable"] == "warn"
+    assert run["payload"]["expression"]["tpm_by_gene"]["ENSG00000141510"] > 0
+    tables = run["payload"]["variant_tables"]
+    assert len(tables["somatic_maf"]["pos"]) == 588
+    assert len(tables.get("somatic_indel_maf", {}).get("pos", [])) == 3
+
+
+def test_real_skcm_translation_matches_maf_hgvsp_annotations(tmp_path: Path) -> None:
+    from neoforge.gtf import GtfTranscriptIndex  # noqa: PLC0415
+    from neoforge.sequence import IndexedFasta  # noqa: PLC0415
+    from neoforge.stages.translate import run_translate  # noqa: PLC0415
+
+    store = ArtifactStore(tmp_path / "work")
+    run_ingest(SKCM_BUNDLE, REFS, store)
+    from neoforge.stages.variants import run_variants
+    run_variants(store, "skcm_d9a3z1")
+    fasta_gz = REFS / "gencode/GRCh38.primary_assembly.genome.fa.gz"
+    genome = IndexedFasta(IndexedFasta.decompress_if_needed(fasta_gz, REFS / "gencode"))
+    run_translate(store, "skcm_d9a3z1",
+                  REFS / "gencode/gencode.v46.annotation.gtf.gz", genome)
+    from neoforge.stages.present import run_present
+    from neoforge.errors import ArtifactChainError
+    with pytest.raises(ArtifactChainError, match="no HLA alleles"):
+        run_present(store, "skcm_d9a3z1")
+
+    derived = store.load("skcm_d9a3z1", "translate")["derived"]
+
+    observed: dict[str, set] = {}
+    for i in range(len(derived["variant_key"])):
+        observed.setdefault(derived["variant_key"][i], set()).add(
+            (derived["transcript_id"][i].split(".", 1)[0],
+             derived["protein_pos"][i], derived["ref_aa"][i], derived["alt_aa"][i]))
+
+    with gzip.open(SKCM_MAF, "rt") as f:
+        lines = [line for line in f if not line.startswith("#")]
+    reader = csv.reader(lines, delimiter="\t")
+    header = next(reader)
+    rows = [dict(zip(header, r)) for r in reader]
+
+    expected_missense = [r for r in rows
+                         if r["Variant_Type"] == "SNP" and r["Variant_Classification"] == "Missense_Mutation"]
+    compared = same_transcript = 0
+    for r in expected_missense:
+        m = _HGVP.match(r["HGVSp"] or "")
+        if not m:
+            continue
+        key = f"{r['Chromosome']}:{r['Start_Position']}{r['Reference_Allele']}>{r['Tumor_Seq_Allele2']}"
+        windows = observed.get(key)
+        if not windows:
+            continue
+        compared += 1
+        want = (int(m.group(2)), _THREE1[m.group(1)], _THREE1[m.group(3)])
+        if want in {(pos, ref, alt) for tid, pos, ref, alt in windows
+                    if tid == r["Transcript_ID"]}:
+            same_transcript += 1
+        else:
+            verified = {(ref, alt) for _, _, ref, alt in windows}
+            assert (want[1], want[2]) in verified, (
+                f"{key}: MAF HGVSp {r['HGVSp']} contradicts every derived window")
+    assert compared >= 350
+    assert same_transcript / compared > 0.90

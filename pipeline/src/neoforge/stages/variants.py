@@ -21,13 +21,15 @@ def _load_ingest(store: ArtifactStore, case: str) -> dict:
 
 def run_variants(store: ArtifactStore, case: str) -> dict:
     ingest = _load_ingest(store, case)
-    table = ingest["variant_tables"].get("somatic_snv_vcf")
+    tables = ingest["variant_tables"]
+    snv_source = "somatic_snv_vcf" if "somatic_snv_vcf" in tables else "somatic_maf"
+    table = tables.get(snv_source)
     if table is None:
-        raise ArtifactChainError("case bundle declared no somatic_snv_vcf; nothing to select")
+        raise ArtifactChainError("case bundle declared no SNV variation source; nothing to select")
 
     excluded: dict[str, int] = {}
 
-    indel_table = ingest["variant_tables"].get("somatic_indel_vcf")
+    indel_table = tables.get("somatic_indel_vcf") or tables.get("somatic_indel_maf")
     if indel_table is not None:
         excluded["indels_out_of_scope_v0.1"] = len(indel_table["pos"])
 

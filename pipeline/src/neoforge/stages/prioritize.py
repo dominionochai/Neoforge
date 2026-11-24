@@ -43,8 +43,9 @@ def run_prioritize(store, case: str, *,
 
     tvaf_by_key, depth_by_key = _measured_variant_features(selected)
     if expression is None:
-        expression = (store.load(case, "ingest").get("expression") or {}).get("tpm_by_gene", {}) or {}
-        expression_source = "ingest artifact (measured DepMap TPM)"
+        expr_block = store.load(case, "ingest").get("expression") or {}
+        expression = expr_block.get("tpm_by_gene", {}) or {}
+        expression_source = expr_block.get("source_description") or "ingest artifact (measured TPM)"
     else:
         expression_source = "caller-supplied gene TPM map"
 

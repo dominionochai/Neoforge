@@ -1,18 +1,28 @@
 """Stage 1 — ingest.
 
 Loads one case bundle, byte-verifies every declared input against its pinned
-SHA-256, parses the somatic VCFs, and independently re-checks the structural
-claims the source makes about itself (SEQC2 v1.2.1: every call lies inside the
-v1.2 high-confidence regions). Produces the L1 `ingest` artifact: a
-column-major variant table plus per-check statuses — the only thing downstream
-stages are allowed to consume. VAF, when the source carries it, is kept with
-its source string; when it does not, the field is missing with that reason."""
+SHA-256, and parses the somatic variation source: the SEQC2-style somatic VCFs
+(independently re-checking the structural claim the source makes about itself —
+v1.2.1: every call lies inside the v1.2 high-confidence regions) or the open
+per-case GDC masked somatic MAF (TCGA cases); both parse into one column-major
+variant table shape. Produces the L1 `ingest` artifact: the variant table plus
+per-check statuses — the only thing downstream stages are allowed to consume.
+
+VAF, when the source carries it, is kept with its source string; when the
+source implies it (MAF depth/alt counts), it is computed by the single
+documented transform recorded in the table; when unavailable, the field stays
+missing with that reason. The HLA block is conditional: a bundle either pins
+the same-sample HLA genotype (`hla_csv` input) or declares
+`hla.status = "unavailable"` with its documented reason — presentation inputs
+are never invented, and never borrowed from a different sample or source.
+"""
 from __future__ import annotations
 
 import hashlib
 from pathlib import Path
 
 from neoforge import hla
+from neoforge import maf as maf_module
 from neoforge.artifacts import ArtifactStore, StageRun
 from neoforge.bed import IntervalIndex
 from neoforge.case_config import load_case_bundle, resolve_input
@@ -20,6 +30,7 @@ from neoforge.errors import InputIntegrityError
 from neoforge.vcf import VcfReader
 
 _HC_CONTAINMENT_MIN = 1.0
+_VARIANT_COLUMNS = ["chrom", "pos", "ref", "alt", "filters", "tvaf", "nvaf", "tumor_depth"]
 
 
 def _parse_expression(refs_root: Path, inputs: dict, declare: dict) -> dict:
@@ -39,11 +50,29 @@ def _parse_expression(refs_root: Path, inputs: dict, declare: dict) -> dict:
         "source": {"path": inputs["expression_tpm_log2p1"]["path"],
                    "sha256": inputs["expression_tpm_log2p1"]["sha256"],
                    "transform": "tpm = 2^v - 1 (source stores log2(TPM+1))"},
+        "source_description": "ingest artifact (measured DepMap TPM)",
         "crosswalk": {"path": inputs["ensembl_entrez_map"]["path"],
                       "sha256": inputs["ensembl_entrez_map"]["sha256"],
                       "ambiguous_entrez_dropped": ambiguous},
         "tpm_by_gene": tpm_by_gene,
         "counts": {**counts, "ambiguous_entrez": ambiguous},
+    }
+
+
+def _parse_gdc_expression(refs_root: Path, inputs: dict, declare: dict) -> dict:
+    from neoforge import expression  # noqa: PLC0415
+
+    tpm_by_gene, counts = expression.gene_tpm_gdc_star(
+        resolve_input(refs_root, inputs["expression_star_tsv"]))
+    return {
+        "patient_sample": declare.get("patient_sample"),
+        "matrix": declare.get("matrix"),
+        "source": {"path": inputs["expression_star_tsv"]["path"],
+                   "sha256": inputs["expression_star_tsv"]["sha256"],
+                   "transform": "none; tpm_unstranded copied verbatim from the GDC STAR output"},
+        "source_description": "ingest artifact (measured GDC STAR TPM, same patient)",
+        "tpm_by_gene": tpm_by_gene,
+        "counts": counts,
     }
 
 
@@ -134,7 +163,7 @@ def _parse_vcf_table(reader: VcfReader, hc_index: IntervalIndex) -> tuple[dict, 
         alts.append(",".join(rec.alts))
         filter_tokens.append(";".join(rec.filters))
     table = {
-        "columns": ["chrom", "pos", "ref", "alt", "filters", "tvaf", "nvaf", "tumor_depth"],
+        "columns": _VARIANT_COLUMNS,
         "chrom": chroms,
         "pos": positions,
         "ref": refs,
@@ -152,23 +181,29 @@ def run_ingest(bundle_path: Path, refs_root: Path, store: ArtifactStore) -> dict
     bundle = load_case_bundle(bundle_path)
     inputs = bundle["input_files"]
     verified_hashes = _verify_inputs(refs_root, bundle)
+
+    checks: list[dict] = [
+        {"id": "pinned_sha256", "status": "pass", "detail": f"{len(verified_hashes)} inputs match pinned digests"}
+    ]
+
+    hc_index = (IntervalIndex.from_bed(resolve_input(refs_root, inputs["hc_regions_bed"]))
+                if "hc_regions_bed" in inputs else None)
+    vaf_source = ("INFO/TVAF" if "somatic_snv_vcf" in inputs
+                  else "computed: t_alt_count / t_depth" if "somatic_maf" in inputs
+                  else "none")
     run = StageRun(
         stage="ingest",
         case=bundle["case_id"],
         inputs=verified_hashes,
         parameters={
             "hc_containment_min": _HC_CONTAINMENT_MIN,
-            "vaf_source_field": "INFO/TVAF",
+            "vaf_source_field": vaf_source,
         },
     )
 
-    checks: list[dict] = [
-        {"id": "pinned_sha256", "status": "pass", "detail": f"{len(verified_hashes)} inputs match pinned digests"}
-    ]
-
-    hc_index = IntervalIndex.from_bed(resolve_input(refs_root, inputs["hc_regions_bed"]))
     per_vcf: dict[str, dict] = {}
     tables: dict[str, dict] = {}
+    parsed_maf: dict | None = None
     for name in ("somatic_snv_vcf", "somatic_indel_vcf"):
         if name not in inputs:
             continue
@@ -197,20 +232,72 @@ def run_ingest(bundle_path: Path, refs_root: Path, store: ArtifactStore) -> dict
         }
         tables[name] = table
 
-    allele_source = hla.load_cell_line_alleles(
-        resolve_input(refs_root, {"path": inputs["hla_csv"]["path"]}), bundle["hla"]["cell_line"]
-    )
-    allele_statuses = hla.normalise_alleles(list(allele_source.alleles))
-    if not all(s.wellformed for s in allele_statuses):
-        bad = [s.note for s in allele_statuses if not s.wellformed]
-        raise InputIntegrityError(f"HLA genotype failed normalisation: {bad}")
-    loci = sorted({s.locus for s in allele_statuses})
-    checks.append({
-        "id": "hla.loci",
-        "status": "pass",
-        "detail": f"loci present: {','.join(loci)}; retained verbatim from source, "
-                  "missing loci/alleles are not imputed",
-    })
+    if "somatic_maf" in inputs:
+        parsed_maf = maf_module.read_gdc_maf(resolve_input(refs_root, inputs["somatic_maf"]))
+        full = parsed_maf["table"]
+        snv = {c: [] for c in _VARIANT_COLUMNS}
+        indel = {c: [] for c in _VARIANT_COLUMNS}
+        for i, kind in enumerate(full["filters"]):
+            target = snv if kind == "SNP" else indel
+            for c in _VARIANT_COLUMNS:
+                target[c].append(full[c][i])
+        tables["somatic_maf"] = {**snv, "columns": _VARIANT_COLUMNS,
+                                 "null_encoding": full["null_encoding"],
+                                 "tvaf_source": full["tvaf_source"]}
+        if any(indel["chrom"]):
+            tables["somatic_indel_maf"] = {**indel, "columns": _VARIANT_COLUMNS,
+                                           "null_encoding": full["null_encoding"],
+                                           "tvaf_source": full["tvaf_source"]}
+        pairing = bundle["pairing"]
+        declared_samples = {"tumour": pairing["tumour"].get("sample"),
+                            "normal": pairing["normal"].get("sample")}
+        if declared_samples["tumour"] and declared_samples["tumour"] != parsed_maf["tumour_sample"]:
+            raise InputIntegrityError(
+                f"MAF tumour sample {parsed_maf['tumour_sample']!r} != bundle pairing {declared_samples['tumour']!r}")
+        if declared_samples["normal"] and declared_samples["normal"] != parsed_maf["normal_sample"]:
+            raise InputIntegrityError(
+                f"MAF matched normal {parsed_maf['normal_sample']!r} != bundle pairing {declared_samples['normal']!r}")
+        checks.append({
+            "id": "somatic_maf.same_patient",
+            "status": "pass",
+            "detail": f"single tumour barcode {parsed_maf['tumour_sample']} + single matched normal "
+                      f"{parsed_maf['normal_sample']}; counters {parsed_maf['counters']}",
+        })
+
+    hla_payload: dict
+    if "hla_csv" in inputs:
+        allele_source = hla.load_cell_line_alleles(
+            resolve_input(refs_root, {"path": inputs["hla_csv"]["path"]}), bundle["hla"]["cell_line"]
+        )
+        allele_statuses = hla.normalise_alleles(list(allele_source.alleles))
+        if not all(s.wellformed for s in allele_statuses):
+            bad = [s.note for s in allele_statuses if not s.wellformed]
+            raise InputIntegrityError(f"HLA genotype failed normalisation: {bad}")
+        loci = sorted({s.locus for s in allele_statuses})
+        checks.append({
+            "id": "hla.loci",
+            "status": "pass",
+            "detail": f"loci present: {','.join(loci)}; retained verbatim from source, "
+                      "missing loci/alleles are not imputed",
+        })
+        hla_payload = {
+            "cell_line": allele_source.cell_line,
+            "allele_statuses": [s.__dict__ for s in allele_statuses],
+            "resolved_alleles": [s.normalised for s in allele_statuses if s.wellformed],
+            "source": {"path": inputs["hla_csv"]["path"], "sha256": allele_source.sha256},
+        }
+    else:
+        if bundle["hla"].get("status") != "unavailable" or not bundle["hla"].get("reason"):
+            raise InputIntegrityError(
+                "case bundle without hla_csv must declare hla.status='unavailable' with a reason")
+        checks.append({
+            "id": "hla.unavailable",
+            "status": "warn",
+            "detail": f"no same-sample HLA genotype input: {bundle['hla']['reason']} "
+                      "(presentation/prioritisation stages will be refused rather than imputed)",
+        })
+        hla_payload = {"resolved_alleles": [], "status": "unavailable",
+                       "reason": bundle["hla"]["reason"]}
 
     expression_block = None
     if "expression_tpm_log2p1" in inputs:
@@ -225,6 +312,19 @@ def run_ingest(bundle_path: Path, refs_root: Path, store: ArtifactStore) -> dict
                 f"columns unmapped to Ensembl: {counts['unmapped_entrez']}; "
                 f"ambiguous crosswalk columns dropped: {counts['ambiguous_entrez']}; "
                 "single documented transform tpm = 2^(v) - 1"
+            ),
+        })
+    elif "expression_star_tsv" in inputs:
+        expression_block = _parse_gdc_expression(refs_root, inputs, bundle.get("expression", {}))
+        counts = expression_block["counts"]
+        checks.append({
+            "id": "expression.source",
+            "status": "pass",
+            "detail": (
+                f"measured GDC STAR TPM ({expression_block['patient_sample']}): "
+                f"{len(expression_block['tpm_by_gene'])} genes; value gaps: {counts['value_gaps']}; "
+                f"duplicate (PAR) gene ids resolved to their primary record: {counts['duplicate_gene_id']}; "
+                "no transform applied"
             ),
         })
 
@@ -243,13 +343,11 @@ def run_ingest(bundle_path: Path, refs_root: Path, store: ArtifactStore) -> dict
         ],
         "vcf": per_vcf,
         "variant_tables": tables,
-        "hla": {
-            "cell_line": allele_source.cell_line,
-            "allele_statuses": [s.__dict__ for s in allele_statuses],
-            "resolved_alleles": [s.normalised for s in allele_statuses if s.wellformed],
-            "source": {"path": inputs["hla_csv"]["path"], "sha256": allele_source.sha256},
-        },
+        "hla": hla_payload,
         "expression": expression_block,
+        "maf": ({"counters": parsed_maf["counters"],
+                 "tumour_sample": parsed_maf["tumour_sample"],
+                 "normal_sample": parsed_maf["normal_sample"]} if parsed_maf else None),
         "checks": checks,
     }
     artifact_id, digest = store.write(run, "ingest", payload)

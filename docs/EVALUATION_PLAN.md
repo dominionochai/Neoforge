@@ -112,6 +112,17 @@ Executed against the real HCC1395/SEQC2 case (branch state at this commit):
   The report stage embeds this reference (`tesla_cohort_reference`) only when
   the tesla_eval artifact exists in the store, and its uncertainty register
   reports the audit as `info` — verdict included verbatim.
+- **Second case (TCGA-SKCM `skcm_d9a3z1`), L1 ingestion + L2 derivation:**
+ executed end-to-end on open GDC data (588 SNVs, 3 INDELs from the ensemble
+ masked MAF; same-patient barcode gate = pass; hla.unavailable warns and the
+ present stage then refuses mechanically — no imputed presentation input).
+ Independent L1↔L2 cross-check: every GDC-annotated missense HGVSp for this
+ patient compared against our genome+GENCODE-v46-derived windows — **338/353
+ agree on the exact (ref AA, position, alt AA) on the MAF's own transcript**,
+ 10 more agree exactly on another derived transcript of the same gene, 5
+ differ only in protein position with identical substitution (annotation-
+ version transcript-model drift, recorded, not hidden) and **0 contradictions
+ of the substitution itself**; encoded in `test_real_case.py::…skcm…hgvsp…`.
 - **Determinism:** six-stage CLI end-to-end test (`test_pipeline_e2e.py`) reruns
   the whole chain and requires hash-identical artifacts — passing on the real
   case, including a hash-identical report with its exportable Markdown.

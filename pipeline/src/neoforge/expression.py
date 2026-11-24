@@ -6,6 +6,10 @@ Reads the checksum-pinned per-model row extracted from
 Ensembl BioMart, and produces a gene->TPM map keyed by *unversioned* Ensembl
 gene ids to match GENCODE v46 annotation ids.
 
+Also reads GDC `rna_seq.augmented_star_gene_counts.tsv` (one patient's
+STAR alignment; column `tpm_unstranded` is TPM as published by GDC — no
+transform applied, the value is copied verbatim) keyed by unversioned ENSG.
+
 Honesty rules: the single documented transform is tpm = 2^(v) - 1 (the exact
 inverse of the source's stated log2(TPM+1)); an entrez id that maps to
 multiple Ensembl genes is ambiguous and that column is dropped and counted —
@@ -59,3 +63,28 @@ def gene_tpm(row_path, ensg_by_entrez: dict[str, str]) -> tuple[dict[str, float]
             continue
         tpm_by_gene.setdefault(ensg, 2.0 ** float(value) - 1.0)
     return depmap_id, tpm_by_gene, counts
+
+
+def gene_tpm_gdc_star(tsv_path) -> tuple[dict[str, float], dict]:
+    tpm_by_gene: dict[str, float] = {}
+    counts = {"rows": 0, "value_gaps": 0, "duplicate_gene_id": 0}
+    with open(tsv_path, encoding="utf-8") as f:
+        for line in f:
+            if line.startswith("#"):
+                continue
+            cols = line.rstrip("\n").split("\t")
+            if cols[0] == "gene_id":
+                header = cols
+                tpm_idx = header.index("tpm_unstranded")
+                continue
+            counts["rows"] += 1
+            value = cols[tpm_idx]
+            if value == "":
+                counts["value_gaps"] += 1
+                continue
+            ensg = cols[0].split(".", 1)[0]
+            if ensg in tpm_by_gene:
+                counts["duplicate_gene_id"] += 1
+                continue
+            tpm_by_gene[ensg] = float(value)
+    return tpm_by_gene, counts

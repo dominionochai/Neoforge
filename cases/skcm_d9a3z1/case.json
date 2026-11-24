@@ -1,0 +1,31 @@
+{
+  "case_id": "skcm_d9a3z1",
+  "display_name": "TCGA-D9-A3Z1 melanoma (open tier, single patient)",
+  "description": "Cutaneous melanoma case TCGA-D9-A3Z1 from the TCGA-SKCM cohort, open tier: one patient's GDC-masked somatic MAF (WXS ensemble callset, 591 records) against a matched blood normal, plus the same patient's STAR gene-expression TPM. Demonstrates the pipeline on a second, heterogeneously shaped input modality; L1 measured layers only for presentation inputs (no same-patient HLA genotype exists in the open tier).",
+  "genome_build": "GRCh38",
+  "pairing": {
+    "tumour": {"cell_line": "TCGA-D9-A3Z1-06A-11D-A23B-08", "sample": "TCGA-D9-A3Z1-06A-11D-A23B-08", "type": "primary melanoma, aliquot -06A-01D (WXS tumor)"},
+    "normal": {"cell_line": "TCGA-D9-A3Z1-10A-01D-A23B-08", "sample": "TCGA-D9-A3Z1-10A-01D-A23B-08", "type": "blood normal, aliquot -10A-01D (WXS normal)"}
+  },
+  "pairing_provenance": "Both aliquots appear in every row of the ensemble masked MAF (Tumor_Sample_Barcode / Matched_Norm_Sample_Barcode) and come from one GDC case (case_id 4f7e7a0e-4aa2-4b6a-936f-6429c7d6a2a7, submitter_id TCGA-D9-A3Z1); the harness refuses files carrying more than one sample barcode. Expression is the same patient's tumour RNA aliquot (-06A-01R) from GDC STAR analysis 2334018b-2e20-4c8b-a844-14f3b15f83ab; no cross-patient or cross-source molecular inputs are combined.",
+  "input_files": {
+    "somatic_maf": {
+      "path": "tcga/d9a3z1.wxs.aliquot_ensemble_masked.maf.gz",
+      "sha256": "bc37ed2ab8c2ccd1e4f905b75cbc9ce48b8a98eaee8366c8f7c435a912818b01",
+      "role": "L1: open GDC Masked Somatic Mutation MAF (WXS, ensemble callset), GDC file 02de9cd7-94e2-470c-b2ac-9fe6285b50db, 591 records"
+    },
+    "expression_star_tsv": {
+      "path": "tcga/d9a3z1.rna_seq.augmented_star_gene_counts.tsv",
+      "sha256": "a1ca53c4e2b4907627daf5c9192aabdd3f5d835dca4b605e1d8c51c5a8686ab1",
+      "role": "L1: measured gene expression, same patient's tumour RNA aliquot, GDC file 631ef22b-0162-47a7-9dd0-c1d33f9a1de5 (STAR, GENCODE v36 model)"
+    }
+  },
+  "hla": {
+    "status": "unavailable",
+    "reason": "the only TCGA patient-level class-I OptiType calls (Immune Landscape of Cancer) are GDC controlled-access (HTTP 403 without a token); no open same-patient HLA genotype exists, so no presentation/prioritisation is run for this case"
+  },
+  "expression": {
+    "patient_sample": "TCGA-D9-A3Z1-06A-11D-A23B-08",
+    "matrix": "GDC rna_seq.augmented_star_gene_counts.tsv (tumour sample TCGA-D9-A3Z1-06A-01R); tpm_unstranded copied verbatim"
+  }
+}

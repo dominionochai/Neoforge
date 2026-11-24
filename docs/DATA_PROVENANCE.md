@@ -38,8 +38,25 @@ per case. Context use is limited to cohort-level landscape visualisation.
 calls from the Immune Landscape of Cancer, GDC UUID `2cf05dd5-...`) return
 HTTP 403 without a GDC data-access token; patient-level personal neoantigen
 analysis for TCGA cases is therefore **not presented**, rather than combining
-HLA from one source with mutations from another. GDC token access would unlock
-it (documented path), but honesty first.
+HLA from one source with mutations from another; the ingest harness enforces
+this mechanically (a bundle without `hla_csv` must declare
+`hla.status="unavailable"` with its reason, and the present stage refuses to
+run on an empty HLA block). GDC token access would unlock it (documented
+path), but honesty first.
+
+
+### 2a. Executed — SKCM case `skcm_d9a3z1` fetch records (2026 session)
+
+| GDC file UUID | File | Content | SHA-256 | Licence/access |
+|---|---|---|---|---|
+| `02de9cd7-94e2-470c-b2ac-9fe6285b50db` | `tcga/d9a3z1.wxs.aliquot_ensemble_masked.maf.gz` | open Masked Somatic Mutation (WXS ensemble, 591 records; single tumour barcode `TCGA-D9-A3Z1-06A-11D-A23B-08`, matched normal `TCGA-D9-A3Z1-10A-01D-A23B-08`) | `bc37ed2ab8c2ccd1e4f905b75cbc9ce48b8a98eaee8366c8f7c435a912818b01` | GDC open tier |
+| `631ef22b-0162-47a7-9dd0-c1d33f9a1de5` | `tcga/d9a3z1.rna_seq.augmented_star_gene_counts.tsv` | same patient's tumour RNA aliquot (-06A-01R): STAR gene counts incl. `tpm_unstranded` (60,666 rows; GENCODE v36 model) | `a1ca53c4e2b4907627daf5c9192aabdd3f5d835dca4b605e1d8c51c5a8686ab1` | GDC open tier |
+
+Both are fetched verbatim via `fetch/manifests.csv`; the case bundle pins their
+SHA-256 and the ingest harness re-verifies them at run time (same-patient
+barcode check refuses files carrying a second tumour sample).
+
+---
 
 ## 3. TESLA external benchmark (ranking-rule audit executed see EVALUATION_PLAN.md; candidate-level immunogenicity: not claimed)
 
