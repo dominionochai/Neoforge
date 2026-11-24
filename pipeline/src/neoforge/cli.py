@@ -47,7 +47,18 @@ def main(argv: list[str] | None = None) -> int:
         from neoforge.stages.present import run_present
 
         return _emit_present(run_present(store, args.case, limit=args.limit))
+    if args.stage == "prioritize":
+        from neoforge.stages.prioritize import run_prioritize
+
+        return _emit_prioritize(run_prioritize(store, args.case))
     raise NotImplementedError(f"stage '{args.stage}' connects when implemented")
+
+
+def _emit_prioritize(result: dict) -> int:
+    p = result["payload"]
+    print(f"prioritize: artifact {result['artifact_id']} [{p['layer']}, evidence={p['evidence_kind']}]")
+    print(f"  candidates: {p['candidates_prioritised']}; tiers: {p['tier_counts']}")
+    return 0
 
 
 def _emit_present(result: dict) -> int:
