@@ -42,7 +42,19 @@ def main(argv: list[str] | None = None) -> int:
         for key, value in result["payload"]["summary"].items():
             print(f"  {key}: {value}")
         return 0
+    if args.stage == "present":
+        from neoforge.stages.present import run_present
+
+        return _emit_present(run_present(store, args.case))
     raise NotImplementedError(f"stage '{args.stage}' connects when implemented")
+
+
+def _emit_present(result: dict) -> int:
+    p = result["payload"]
+    print(f"present: artifact {result['artifact_id']} [{p['layer']}, evidence={p['evidence_kind']}]")
+    print(f"  candidates scored: {p['candidates_scored']}; predictions made: {p['predictions_made']} "
+          f"in {p['wall_seconds']}s")
+    return 0
 
 
 def _emit(result: dict, lines: list[str]) -> int:

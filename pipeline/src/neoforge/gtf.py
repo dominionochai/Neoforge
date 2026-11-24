@@ -114,7 +114,7 @@ class GtfTranscriptIndex:
         entries = self._bins.get((chrom, pos >> BIN_SHIFT))
         if not entries:
             return []
-        return {tid for start, end, tid in entries if start <= pos <= end}
+        return sorted({tid for start, end, tid in entries if start <= pos <= end})
 
     def n_transcripts(self) -> int:
         return len(self.transcripts)

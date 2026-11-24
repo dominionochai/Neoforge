@@ -138,8 +138,8 @@ def test_index_coverage_and_translation_order(mini) -> None:
     index, _ = mini
     t1, t2 = index.transcripts["T1"], index.transcripts["T2"]
     assert set(index.covering_transcripts("chrT", 150)) == {"T1", "T2"}
-    assert index.covering_transcripts("chrT", 151) == set()
-    assert index.covering_transcripts("chrT", 199) == set()
+    assert index.covering_transcripts("chrT", 151) == []
+    assert index.covering_transcripts("chrT", 199) == []
     assert t1.offset_of(150) == 49 and t1.offset_of(200) == 50
     assert t2.offset_of(150) == 43 and t2.offset_of(200) == 42
     assert t1.positions_for_offsets([48, 49, 50]) == [149, 150, 200]
