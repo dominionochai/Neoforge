@@ -38,6 +38,7 @@ Rules enforced in code and UI:
 ```
 ingest → variants → translate → present → prioritize → report
 construct = research-only design layer over the L1–L3 chain (no science added)
+structure = residue-level propensity annotation of the design (pinned published parameters; not a 3-D model)
 ```
 
 Each stage is a pure function from artifacts to artifacts. Every artifact is
@@ -72,6 +73,14 @@ immutable, content-hashed (SHA-256), and stored with a provenance record
   the full L1–L3 chain, a resolved HLA genotype, or a surviving tier-A
   candidate. What a design layer can and cannot be evaluated on is specified
   in the construct section of `docs/EVALUATION_PLAN.md`.
+- **structure** — an **annotation layer over the construct design**: labels
+  every residue of the designed protein with a secondary-structure propensity
+  (alpha-helix / beta-sheet / coil) computed from the published, pinned
+  Chou–Fasman (1978) conformational parameters via a fixed, documented
+  windowed-mean/argmax rule. It is derived arithmetic on the sequence — not a
+  3-D model (no coordinates, contact maps or docking), not a measurement, and
+  not compared to any experimental structure (validation pending, declared in
+  the artifact). It refuses mechanically without a construct artifact.
 
 ## 4. Prioritisation: explainable, TESLA-grounded, no invented weights
 

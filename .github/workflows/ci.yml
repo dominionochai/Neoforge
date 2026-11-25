@@ -31,3 +31,48 @@ jobs:
           for f in scripts/*.sh; do
             bash -n "$f"
           done
+
+  real-data:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      NEOFORGE_REFS: ${{ github.workspace }}/neoforge-refs
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install pipeline package
+        run: pip install -e "./pipeline"
+
+      - name: Restore reference data
+        id: refs
+        uses: actions/cache@v4
+        with:
+          path: neoforge-refs
+          key: refs-v1-${{ hashFiles('fetch/manifests.csv') }}
+
+      - name: Fetch pinned reference data (SEQC2, GENCODE, CCLE, TCGA, TESLA)
+        if: steps.refs.outputs.cache-hit != 'true'
+        run: python fetch/fetch_manifests.py --out-dir "$NEOFORGE_REFS"
+
+      - name: Derive the HCC1395 expression row from the pinned DepMap matrix
+        if: steps.refs.outputs.cache-hit != 'true'
+        run: python fetch/extract_expression.py "$NEOFORGE_REFS/ccle"
+
+      - name: Cache MHCflurry prediction models
+        id: mhcflurry
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/mhcflurry
+          key: mhcflurry-models-v1
+
+      - name: Download MHCflurry models
+        run: mhcflurry-downloads fetch models_class1 models_class1_presentation
+
+      - name: Real-data test suite (L1-L3 chain, L4 benchmark, e2e determinism)
+        working-directory: pipeline
+        run: python -m pytest tests -m "slow" -q --durations=10

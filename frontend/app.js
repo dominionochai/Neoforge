@@ -125,6 +125,16 @@ const state = {
 async function fetchJSON(url) {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`${url} → HTTP ${res.status}`);
+  if (url.endsWith(".json.gz")) {
+    if (!("DecompressionStream" in window)) {
+      throw new Error("this browser cannot decompress the exported projections " +
+        "(DecompressionStream missing); use a current Chrome, Edge, Firefox or Safari");
+    }
+    const text = await new Response(
+      new Response(res.arrayBuffer()).body.pipeThrough(new DecompressionStream("gzip"))
+    ).text();
+    return JSON.parse(text);
+  }
   return res.json();
 }
 
@@ -132,14 +142,14 @@ async function ensureCase(id) {
   if (state.caseId === id && state.data) return state.data;
   state.caseId = id;
   localStorage.setItem("nf.case", id);
-  state.data = await fetchJSON(`data/case_${id}.json`);
+  state.data = await fetchJSON(`data/case_${id}.json.gz`);
   state.variant = null;
   state.rule = null;
   state.mu = { q: "", chrom: "", pepOnly: false, page: 1 };
   state.ca = { variant: "", allele: "", len: "", sort: "aff", tsp: false, page: 1 };
   return state.data;
 }
-const ensureTesla = () => state.tesla || (state.tesla = fetchJSON("data/benchmark_tesla.json"));
+const ensureTesla = () => state.tesla || (state.tesla = fetchJSON("data/benchmark_tesla.json.gz"));
 
 function parseHash() {
   const h = location.hash.replace(/^#\/?/, "");
@@ -1178,6 +1188,35 @@ function constructMapSVG(c) {
       &nbsp;${chips.join(" ")}</p>`;
 }
 
+function structureStripSVG(s) {
+  if (!s || !s.propensity_table) return "";
+  const labels = s.propensity_table.label;
+  const aa = s.propensity_table.aa;
+  const n = labels.length;
+  if (!n) return "";
+  const W = 940, pad = 10, H = 58, barY = 22, barH = 18;
+  const scale = (W - 2 * pad) / n;
+  const colors = { H: "var(--accent)", E: "#58a6ff", C: "var(--faint)" };
+  const names = { H: "alpha-helix propensity", E: "beta-sheet propensity", C: "coil (reference 1.0)" };
+  let rects = "";
+  for (let i = 0; i < n; i++) {
+    rects += `<rect x="${(pad + i * scale).toFixed(2)}" y="${barY}" width="${Math.max(scale, 0.8).toFixed(2)}" height="${barH}" fill="${colors[labels[i]]}"><title>residue ${i + 1} ${esc(aa[i])} \u00b7 ${labels[i]} (${esc(names[labels[i]] || labels[i])})</title></rect>`;
+  }
+  const counts = s.summary.label_counts;
+  const runN = s.summary.helix_runs_ge3.length + s.summary.sheet_runs_ge3.length;
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="secondary-structure propensity strip"
+    style="max-width:${W}px;width:100%">
+    <text class="axis" x="${pad}" y="12">residue 1..${nfmt(n)} \u00b7 one bar per residue \u00b7 NOT a 3-D model</text>
+    ${rects}</svg>
+    <p class="small">
+      <span class="tag ok">H ${nfmt(counts["H"] || 0)}</span>
+      <span class="tag l2">E ${nfmt(counts["E"] || 0)}</span>
+      <span class="tag missing">C ${nfmt(counts["C"] || 0)}</span>
+      <span class="tag warn" title="runs of \u22653 consecutive residues with the same label">${nfmt(runN)} runs \u22653</span>
+      &nbsp;windowed mean of pinned Chou\u2013Fasman (1978) parameters, argmax over {H, E, C};
+      ${esc(s.parameters.chou_fasman.file)} \u00b7 sha256 ${shortSha(s.parameters.chou_fasman.sha256)}</p>`;
+}
+
 function viewConstruct() {
   const d = state.data;
   const c = d.construct;
@@ -1214,6 +1253,16 @@ function viewConstruct() {
       <h3 style="margin-top:0">Construct map \u2014 ${nfmt(st.protein_length_aa)} aa encoded by ${nfmt(st.cds_length_nt)} nt</h3>
       ${constructMapSVG(c)}
     </div>
+
+    ${d.structure ? `<div class="card">
+      <h3 style="margin-top:0">Secondary-structure propensity \u2014 sequence-derived, not a 3-D model</h3>
+      <p class="small dim">${esc(d.structure.stamp)} ${esc(d.structure.non_claims.join(" "))}
+      <br>validation: <span class="tag missing">${esc(d.structure.validation_status)}</span>
+      ${esc(d.structure.validation_note)}</p>
+      ${structureStripSVG(d.structure)}
+      ${stageSourceLine(d, "structure")}
+    </div>` : ""}
+
 
     <div class="card">
       <h3 style="margin-top:0">Selection ledger \u2014 ${nfmt(cs.epitopes_selected)} included \u00b7 ${nfmt(cs.epitopes_excluded_ledgered)} ledgered exclusions</h3>
@@ -1288,7 +1337,8 @@ function viewConstruct() {
           <dt>linkers</dt><dd>${nfmt(st.linker_count)} \u00d7 ${esc(st.linker)} (published MHC-I convention)</dd>
           <dt>signal peptide</dt><dd class="wrap small">${esc(c.parameters.signal_peptide)} \u2014 ${esc(c.parameters.signal_peptide_source)}</dd>
           <dt>trafficking tag</dt><dd class="wrap small">${esc(c.parameters.trafficking_tag)} \u2014 ${esc(c.parameters.trafficking_tag_source)}</dd>
-          <dt>FASTA export</dt><dd class="mono small">${esc(c.fasta_file)}</dd>
+          <dt>FASTA export</dt><dd><a href="data/${esc(c.fasta_file)}" download="${esc(c.fasta_file)}"><button class="controls">download .fasta</button></a>
+            <span class="mono small" title="sha256 of the served copy (byte-identical to the artifact-store file)">${esc(shortSha(c.fasta_sha256))}</span></dd>
         </dl>
       </div>
     </div>

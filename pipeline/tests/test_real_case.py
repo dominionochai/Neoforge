@@ -116,7 +116,7 @@ def test_real_skcm_ingest_same_patient_and_boundary(tmp_path: Path) -> None:
 
 
 def test_real_skcm_translation_matches_maf_hgvsp_annotations(tmp_path: Path) -> None:
-    from neoforge.gtf import GtfTranscriptIndex  # noqa: PLC0415
+
     from neoforge.sequence import IndexedFasta  # noqa: PLC0415
     from neoforge.stages.translate import run_translate  # noqa: PLC0415
 

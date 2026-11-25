@@ -1,4 +1,4 @@
-from neoforge.evidence import FeatureValue, EvidenceKind, measurement, missing, prediction
+from neoforge.evidence import EvidenceKind, measurement, missing, prediction
 
 
 def test_feature_value_serialisation():

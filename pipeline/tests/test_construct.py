@@ -25,10 +25,10 @@ from neoforge.stages.construct import (
     BINDER_NM,
     JUNCTION_LENGTHS,
     _translate,
+    homopolymer_runs,
+    improve_order,
     junction_peptides,
     load_codon_usage,
-    homopolymer_runs,
-    restriction_sites,
     reverse_translate,
     run_construct,
 )
@@ -62,8 +62,11 @@ def write_variants_fixture(store: ArtifactStore, keys: list[str]) -> None:
 def write_translate(store: ArtifactStore, rows: list[tuple[str, str, str, int]]) -> None:
     store.write(
         StageRun(stage="translate", case="mini"), "translate",
-        {"summary": {"derived_windows": len(rows), "transcripts_hit":
-                     len({r[1] for r in rows})},
+        {"summary": {"windows_derived": len(rows), "transcripts_hit":
+                     len({r[1] for r in rows}),
+                     "variants_with_peptides": len({r[0] for r in rows}),
+                     "variants_processed": len({r[0] for r in rows})},
+         "parameters": {"peptide_lengths": [8, 9, 10, 11]},
          "derived": {"columns": ["variant_key", "transcript_id", "gene_id", "mutant_offset"],
                      "variant_key": [r[0] for r in rows],
                      "transcript_id": [r[1] for r in rows],
@@ -253,11 +256,44 @@ def test_junction_audit_flags_and_monotone_improvement(tmp_path: Path) -> None:
         sum(1 for r in rows if r["flagged"])
     flags = [h["flagged_junction_peptides"] for h in audit["history"]
              if h["accepted"]]
-    assert flags == sorted(flags), f"accepted orderings must not worsen flags: {flags}"
+    assert flags == sorted(flags, reverse=True), \
+        f"accepted orderings must not worsen flags: {flags}"
+
+
+def _pairwise_cost(bad_pairs: set[tuple[int, int]]):
+    def audit_fn(seq: list[int]) -> tuple[int, list[dict]]:
+        flags = sum(1 for a, b in zip(seq, seq[1:]) if (a, b) in bad_pairs)
+        return flags, []
+    return audit_fn
+
+
+def test_minimiser_reinsertion_reaches_where_swaps_stall() -> None:
+    """A junction flag is a property of an epitope epair, so swap-only search
+    is genuine hill-climbing on a pair objective: this audit admits optima
+    only [0,2,3,1] and [1,3,2,0], and swap-only search from [0,1,2,3] stalls
+    at cost 1 while one reinsertion reaches 0."""
+    good = {(0, 2), (2, 0), (2, 3), (3, 2), (3, 1), (1, 3)}
+    bad_pairs = {(a, b) for a in range(4) for b in range(4)
+                 if a != b and (a, b) not in good}
+    audit_fn = _pairwise_cost(bad_pairs)
+
+    swap_only, flags_swap, history_swap = improve_order(
+        [0, 1, 2, 3], audit_fn, move_family="swap", max_moves=12)
+    assert flags_swap == 1 and swap_only == [1, 0, 2, 3]
+    assert history_swap[-1]["action"] == "no improving swap or reinsertion"
+
+    both, flags_both, history_both = improve_order([0, 1, 2, 3], audit_fn)
+    assert flags_both == 0 and both in ([0, 2, 3, 1], [1, 3, 2, 0])
+
+    accepted = [h["flagged_junction_peptides"] for h in history_both if h["accepted"]]
+    assert accepted == sorted(accepted, reverse=True), accepted
+    moves = [h["action"] for h in history_both if h["accepted"]][1:]
+    assert len(moves) <= 2 * 4, moves
+    again_flags = improve_order([0, 1, 2, 3], audit_fn)[1]
+    assert again_flags == flags_both
 
 
 def test_junction_peptides_straddle_and_include_all_lengths() -> None:
-    parts = ["AAAAAAAAAAA", "CCCCCCCCCC"]
     spans = junction_peptides(["AAAAAAAAAAA", "CCCCCCCCCC", "G", "G"])
     j0 = [(j, s) for j, s in spans if j == 0]
     lengths = sorted({len(s) for _, s in j0})

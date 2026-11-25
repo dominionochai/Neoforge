@@ -25,8 +25,11 @@ Selection rules, each ledgered with the reason that applied:
 
 Assembly junctions are audited by scoring every junction-spanning peptide
 (lengths 8-11, including the linker) against every case allele with
-MHCflurry; epitope order is then improved by deterministic adjacent-swap
-minimisation of flagged new binders. Reverse translation uses the pinned
+MHCflurry; epitope order is then improved by a deterministic bounded
+minimisation over adjacent swaps and single-epitope reinsertions of flagged
+new binders. An order whose residual flags survive every accepted move is
+recorded, not resolved: the minimisation is audit-grade, not an optimizer
+claim. Reverse translation uses the pinned
 GENCODE-v46-derived human codon table in neoforge/data (raw counts from the
 same reference the translate stage reads) with a deterministic homopolymer
 mitigation pass. UTRs and poly(A) are labelled placeholders; mRNA chemistry
@@ -257,6 +260,61 @@ def junction_peptides(parts: list[str]) -> list[tuple[int, str]]:
     return out
 
 
+def improve_order(order: list[int], audit_fn: Callable[[list[int]], tuple[int, list[dict]]],
+                  *, move_family: str = "swap+reinsert", max_moves: int | None = None
+                  ) -> tuple[list[int], int, list[dict]]:
+    """Deterministic bounded minimisation of audit_fn's flagged-row count.
+
+    move_family "swap+reinsert" offers two move kinds per round: an adjacent
+    swap and a single-epitope reinsertion (remove at i, insert at j). Each
+    accepted move strictly lowers the flagged count (monotone accepted
+    history), the best improvement wins with first-enumerated tie-break, and
+    the search stops on a no-improvement round or after max_moves accepted
+    moves (default 2 x population). The result is therefore audit-grade: a
+    documented, reproducible reduction of flagged junctions, with anything
+    residual reported as residual.
+    """
+    if move_family not in ("swap", "swap+reinsert"):
+        raise ValueError(f"unknown move_family '{move_family}'")
+
+    def apply(cur: list[int], kind: str, i: int, j: int) -> list[int]:
+        if kind == "swap":
+            return cur[:i] + [cur[i + 1], cur[i]] + cur[i + 2:]
+        trial = cur[:i] + cur[i + 1:]
+        return trial[:j] + [cur[i]] + trial[j:]
+
+    n = len(order)
+    moves: list[tuple[str, int, int]] = [("swap", i, i + 1) for i in range(n - 1)]
+    if move_family == "swap+reinsert":
+        moves += [("move", i, j) for i in range(n) for j in range(n)
+                  if j not in (i - 1, i, i + 1)]
+
+    current = list(order)
+    flagged, _rows = audit_fn(current)
+    history: list[dict] = [{"action": "initial allele-coverage ordering",
+                            "flagged_junction_peptides": flagged, "accepted": True}]
+    budget = 2 * n if max_moves is None else max_moves
+    while budget > 0:
+        best_f, best_seq, best_action = None, None, None
+        for kind, i, j in moves:
+            trial = apply(current, kind, i, j)
+            f, _rows = audit_fn(trial)
+            if f < flagged and (best_f is None or f < best_f):
+                best_f, best_seq, best_action = f, trial, (kind, i, j)
+        if best_seq is None:
+            history.append({"action": "no improving swap or reinsertion",
+                            "flagged_junction_peptides": flagged, "accepted": False})
+            break
+        flagged, current = best_f, best_seq
+        kind, i, j = best_action
+        label = (f"swapped positions {i} and {i + 1}" if kind == "swap"
+                 else f"moved epitope from position {i} to {j}")
+        history.append({"action": label,
+                        "flagged_junction_peptides": flagged, "accepted": True})
+        budget -= 1
+    return current, flagged, history
+
+
 def reverse_translate(protein: str, by_aa: dict[str, list[tuple[str, int]]]) -> tuple[str, list[dict]]:
     """Most-frequent human codon per residue with a deterministic homopolymer fix:
 
@@ -401,28 +459,10 @@ def run_construct(store: ArtifactStore, case: str, *,
                                  "mhcflurry_affinity_nm": aff, "flagged": aff <= binder_nm})
         return sum(1 for r in rows if r["flagged"]), rows
 
-    flagged, _ = audit(list(order))
-    history: list[dict] = [{"action": "initial allele-coverage ordering",
-                            "flagged_junction_peptides": flagged, "accepted": True}]
-    current = list(order)
-    for _round in range(len(current)):
-        best: int | None = None
-        swap_at = -1
-        for i in range(len(current) - 1):
-            trial = current[:i] + [current[i + 1], current[i]] + current[i + 2:]
-            f, _rows = audit(trial)
-            if f < flagged and (best is None or f < best):
-                best, swap_at = f, i
-        if best is None:
-            history.append({"action": "no improving adjacent swap",
-                            "flagged_junction_peptides": flagged, "accepted": False})
-            break
-        flagged = best
-        i = swap_at
-        current = current[:i] + [current[i + 1], current[i]] + current[i + 2:]
-        history.append({"action": f"swapped positions {i} and {i + 1}",
-                        "flagged_junction_peptides": flagged, "accepted": True})
+    current, flagged, history = improve_order(list(order), audit)
     flagged_final, junction_rows = audit(current)
+    assert flagged_final == flagged, \
+        "minimisation history disagrees with the final junction audit"
 
     final_epitopes = [included[i] for i in current]
     sig = SIGNAL_PEPTIDES[signal_peptide]
@@ -527,6 +567,7 @@ def run_construct(store: ArtifactStore, case: str, *,
                          "case_alleles": case_alleles,
                          "alleles_covered": sorted({e["allele"] for e in final_epitopes}),
                          "genes_covered": sorted({e["gene_id"] for e in final_epitopes})},
+        "protein": protein,
         "selection_ledger": {"included": final_epitopes, "excluded": excluded},
         "junction_audit": {
             "predictor": {"software": j_version, "provenance": j_provenance[:80]},

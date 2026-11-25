@@ -144,7 +144,7 @@ def _construct_chain(tmp_path) -> ArtifactStore:
 
     store = ArtifactStore(tmp_path / "work-ui-construct")
     _ingest_for_construct_export(store)
-    keys = keys3 = ["chrT:100A>G", "chrT:200C>T", "chrT:300G>A"]
+    keys = ["chrT:100A>G", "chrT:200C>T", "chrT:300G>A"]
     write_variants_fixture(store, keys)
     write_translate(store, [(k, f"ENST{i + 1}", g, 40 * i)
                             for i, (k, g) in enumerate(zip(keys, GENES_1_3))])
@@ -166,7 +166,9 @@ def _construct_chain(tmp_path) -> ArtifactStore:
          "reference_peptide": "IMMTKEYLE", "reference_mhcflurry_affinity_nm": 900.0},
     ])
     pre = store.load("mini", "present")
-    pre["parameters"] = {"binder_nm": 500.0}
+    pre["parameters"] = {"binder_nm": 500.0, "predictor": "mhcflurry Class1PresentationPredictor",
+                         "mhcflurry_version": "fixture-1.0", "model_provenance": "fixture",
+                         "alleles": ALLELES}
     pre["non_claims"] = ["fixture non-claim"]
     store.write(StageRun(stage="present", case="mini"), "present", pre)
     run_prioritize(store, "mini")
@@ -203,3 +205,24 @@ def test_export_construct_is_none_until_construct_runs(mini_export) -> None:
     _store, payload = mini_export
     assert payload["construct"] is None
     assert "construct" not in payload["pipeline_stage_records"]
+
+
+def test_export_fasta_projection_matches_store_copy(tmp_path) -> None:
+    import hashlib
+
+    store = _construct_chain(tmp_path)
+    cases_dir = tmp_path / "cases" / "mini"
+    cases_dir.mkdir(parents=True)
+    (cases_dir / "case.json").write_text('{"case_id": "mini"}')
+    out_dir = tmp_path / "ui"
+    out_dir.mkdir()
+
+    import neoforge.export_ui as ex
+    payload = ex.export_case(store, "mini", tmp_path / "cases")
+    copied = ex._copy_construct_fastas(store, "mini", out_dir, payload)
+    assert copied == [payload["construct"]["fasta_file"]]
+    fasta = out_dir / copied[0]
+    assert hashlib.sha256(fasta.read_bytes()).hexdigest() == payload["construct"]["fasta_sha256"]
+    body = fasta.read_text().splitlines()
+    assert body[0].startswith(">mini_") and "research design" in body[0]
+    assert len("".join(body[1:])) == payload["construct"]["nucleotide_stats"]["cds_length_nt"]

@@ -106,8 +106,10 @@ that was never made):
 - **Junction audit honesty:** every junction-spanning 8–11-mer is scored
   against every case allele; a new strong binder (≤ the shared 500 nM
   threshold) created by a linker join is *flagged, never averaged away*. The
-  adjacent-swap minimisation is auditable via its history and must be
-  monotone (an accepted ordering can never worsen the flag count).
+  order-minimisation (adjacent swaps plus single-epitope reinsertions,
+  bounded to 2× population accepted moves) is auditable via its history and
+  must be monotone (an accepted ordering can never worsen the flag count);
+  it is audit-grade, and residual flags stay flagged.
 
 **Design assumptions (declared, not validated):** AAY linkers assumed
 proteolytically permissive (processing of linker-embedded epitopes is not
@@ -124,6 +126,37 @@ stage's verification claims and are test-pinned. What *cannot* be claimed from
 this stage, ever: expression, folding, trafficking, immunogenicity or safety of
 a designed sequence. Those require wet-lab data we do not have and do not
 simulate.
+
+## Stage 8 — structure: sequence-derived propensity annotation (validation PENDING)
+
+**What the stage is:** per-residue secondary-structure propensity labels of
+the Stage-7 designed protein (alpha-helix / beta-sheet / coil), computed as a
+fixed, documented rule (truncated centred 6-residue windowed means, argmax,
+fixed tie-break) over the published Chou–Fasman (1978) conformational
+parameters, which are pinned as package data (`neoforge/data/
+chou_fasman_1978.csv`, sha256 recorded in the artifact). Every artifact
+carries "sequence-derived propensity ... not a measured or model-predicted
+3-D structure" and an explicit non-claims list.
+
+**What is verifiable here:** the arithmetic is unit-tested (pinned parameter
+digest, extreme-sequence sanity: poly-A → helix, poly-V → sheet, poly-P →
+coil), deterministic (hash-identical reruns), and refuses mechanically
+without a construct artifact or on residues outside the 20-amino-acid table.
+Executed on the real HCC1395 design (artifact `71bcb9b81de60bfd`):
+205 residues labelled — 105 H, 80 E, 20 C — from the same 205-aa design.
+
+**Expected limitation & honesty note:** Chou–Fasman parameters are 1970s
+statistics from ~15/29-protein globular sets, not polyepitope vaccine
+strings; propensity ≠ conformation; linkers inherit the same treatment
+though their fate is proteolytic processing that is not simulated.
+
+**Falsification / validation path:** if a planned comparison to an
+experimental structure (e.g. available PDB structures of the component
+epitopes' source proteins) shows the labels track chance, the annotation is
+falsified as information-free and the stage must say so or be withdrawn.
+Until that comparison is executed, the artifact and interface state
+**validation PENDING** — and the interface never renders the strip as a
+structure prediction.
 
 ## Compute determinism
 
@@ -187,7 +220,7 @@ Executed against the real HCC1395/SEQC2 case (branch state at this commit):
  version transcript-model drift, recorded, not hidden) and **0 contradictions
  of the substitution itself**; encoded in `test_real_case.py::…skcm…hgvsp…`.
 - **Stage 7 construct (design layer), executed on the real HCC1395 chain**
-  (artifact `68a7ceb9cfe4eb31`, hammer-rerun verified hash-identical; SKCM
+  (artifact `74c56d8979bef0b9`, hammer-rerun verified hash-identical; SKCM
   refused mechanically — "chain stopped before present"): of 329 candidate
   mutations, 80 Tier A → **15 epitopes selected** (documented cap; slider
   defaults) with **314 ledgered exclusions (249 not_tier_A + 55
@@ -195,15 +228,18 @@ Executed against the real HCC1395/SEQC2 case (branch state at this commit):
   HLA alleles** covered (HLA-A\*29:02, B\*08:01, B\*45:01, C\*06:02, C\*07:01)
   across **15 distinct genes**; protein **205 aa**, back-translated CDS
   **618 nt**, GC **66.34%**, **0 internal stop codons**, round-trip translation
-  exact (`translation_matches_design = true`); **1,535 junction-spanning
-  (junction, peptide, allele) scoring rows** by MHCflurry 2.4.0 — **72 flagged
-  new strong binders** after one accepted adjacent swap, down from 73 at the
-  initial ordering (history: initial 73 → swapped positions 13/14 → 72 → "no
-  improving adjacent swap"); **0 restriction sites** from the documented
-  12-enzyme panel; 3 homopolymer runs of exactly 5 bases (within the
-  documented ≤5 threshold, listed in the artifact); codon table derived from
-  the pinned GENCODE v46 GRCh38 CDS (38,855,269 codons; stop TGA) with its
-  sha256 embedded in the artifact. FASTA export stamped in the header.
-- **Determinism:** six-stage CLI end-to-end test (`test_pipeline_e2e.py`) reruns
+  exact (`translation_matches_design = true`); **1,540 junction-spanning
+  (junction, peptide, allele) scoring rows** by MHCflurry 2.4.0 — **65 flagged
+  new strong binders** remain, down from 73 at the initial ordering
+  (history: initial 73 → moved epitope 3→14 → 68 → moved epitope 10→0 → 65 →
+  "no improving swap or reinsertion"; the minimiser considers adjacent swaps
+  plus single-epitope reinsertions, bounded to 2× population accepted moves,
+  and is audit-grade: residual flagged junctions are recorded in the
+  artifact, not resolved or averaged away); **0 restriction sites** from the
+  documented 12-enzyme panel; 3 homopolymer runs of exactly 5 bases (within
+  the documented ≤5 threshold, listed in the artifact); codon table derived
+  from the pinned GENCODE v46 GRCh38 CDS (38,855,269 codons; stop TGA) with
+  its sha256 embedded in the artifact. FASTA export stamped in the header.
+- **Determinism:** CLI end-to-end test (`test_pipeline_e2e.py`) reruns
   the whole chain and requires hash-identical artifacts — passing on the real
   case, including a hash-identical report with its exportable Markdown.

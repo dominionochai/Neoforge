@@ -24,7 +24,7 @@ neoforge = "neoforge.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-neoforge = ["data/*.tsv","data/*.txt"]
+neoforge = ["data/*.tsv","data/*.txt","data/*.csv"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
