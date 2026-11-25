@@ -12,6 +12,7 @@ scientific claims. Run: `python -m neoforge.export_ui --work-dir ../work \
 from __future__ import annotations
 
 import argparse
+import gzip
 import hashlib
 import json
 from pathlib import Path
@@ -255,8 +256,9 @@ def main() -> int:
         except ArtifactChainError as exc:
             print(f"export_ui: skipped case '{case}' ({exc})")
             continue
-        path = args.out / f"case_{case}.json"
-        path.write_text(json.dumps(payload, sort_keys=True, separators=(",", ":")))
+        path = args.out / f"case_{case}.json.gz"
+        path.write_bytes(gzip.compress(json.dumps(payload, sort_keys=True,
+                                                  separators=(",", ":")).encode(), 9))
         for fasta in _copy_construct_fastas(store, case, args.out, payload):
             written.add(fasta)
             print(f"export_ui: {args.out / fasta} (copy of artifact-store FASTA)")
@@ -267,9 +269,9 @@ def main() -> int:
             print(f"export_ui: removed stale {stale.name}")
     tesla = export_tesla(store)
     if tesla:
-        path = args.out / "benchmark_tesla.json"
-        path.write_text(json.dumps(tesla, sort_keys=True,
-                                   separators=(",", ":")))
+        path = args.out / "benchmark_tesla.json.gz"
+        path.write_bytes(gzip.compress(json.dumps(tesla, sort_keys=True,
+                                                  separators=(",", ":")).encode(), 9))
         print(f"export_ui: {path} ({path.stat().st_size} bytes)")
     return 0
 

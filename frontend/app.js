@@ -125,6 +125,16 @@ const state = {
 async function fetchJSON(url) {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`${url} → HTTP ${res.status}`);
+  if (url.endsWith(".json.gz")) {
+    if (!("DecompressionStream" in window)) {
+      throw new Error("this browser cannot decompress the exported projections " +
+        "(DecompressionStream missing); use a current Chrome, Edge, Firefox or Safari");
+    }
+    const text = await new Response(
+      new Response(res.arrayBuffer()).body.pipeThrough(new DecompressionStream("gzip"))
+    ).text();
+    return JSON.parse(text);
+  }
   return res.json();
 }
 
@@ -132,14 +142,14 @@ async function ensureCase(id) {
   if (state.caseId === id && state.data) return state.data;
   state.caseId = id;
   localStorage.setItem("nf.case", id);
-  state.data = await fetchJSON(`data/case_${id}.json`);
+  state.data = await fetchJSON(`data/case_${id}.json.gz`);
   state.variant = null;
   state.rule = null;
   state.mu = { q: "", chrom: "", pepOnly: false, page: 1 };
   state.ca = { variant: "", allele: "", len: "", sort: "aff", tsp: false, page: 1 };
   return state.data;
 }
-const ensureTesla = () => state.tesla || (state.tesla = fetchJSON("data/benchmark_tesla.json"));
+const ensureTesla = () => state.tesla || (state.tesla = fetchJSON("data/benchmark_tesla.json.gz"));
 
 function parseHash() {
   const h = location.hash.replace(/^#\/?/, "");

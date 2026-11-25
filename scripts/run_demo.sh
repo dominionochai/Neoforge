@@ -68,7 +68,7 @@ python3 -m neoforge.export_ui \
     --work-dir "$ROOT/work" --cases-dir "$ROOT/cases" --out "$TMP"
 
 echo "==> verifying exports match frontend/data, modulo per-run wall-clock"
-expected=(case_hcc1395.json case_skcm_d9a3z1.json benchmark_tesla.json)
+expected=(case_hcc1395.json.gz case_skcm_d9a3z1.json.gz benchmark_tesla.json.gz)
 # construct FASTA copies carry their artifact id in the name; verify whatever was exported
 for f in "$TMP"/construct_cds.*.fasta; do
     [[ -e "$f" ]] && expected+=("$(basename "$f")")
@@ -76,25 +76,22 @@ done
 for f in "${expected[@]}"; do
     [[ -f "$TMP/$f" ]] || fail "export did not produce $f"
     if ! python3 - "$TMP/$f" "$ROOT/frontend/data/$f" <<'PYEOF'
-import sys
-from pathlib import Path
+import gzip, json, sys
 
-a, b = Path(sys.argv[1]), Path(sys.argv[2])
-if a.suffix == ".fasta":
-    sys.exit(0 if a.read_bytes() == b.read_bytes() else "fasta copies differ")
+if str(sys.argv[1]).endswith(".fasta"):
+    sys.exit(0 if open(sys.argv[1], "rb").read() == open(sys.argv[2], "rb").read()
+             else "fasta copies differ")
 
-def load(path):
-    import json
-    def strip_volatile(obj):
-        if isinstance(obj, dict):
-            return {k: strip_volatile(v) for k, v in obj.items() if k != "wall_seconds"}
-        if isinstance(obj, list):
-            return [strip_volatile(v) for v in obj]
-        return obj
-    return strip_volatile(json.loads(path.read_text()))
+def strip_volatile(obj):
+    if isinstance(obj, dict):
+        return {k: strip_volatile(v) for k, v in obj.items() if k != "wall_seconds"}
+    if isinstance(obj, list):
+        return [strip_volatile(v) for v in obj]
+    return obj
 
-x, y = load(a), load(b)
-sys.exit(0 if x == y else "exports differ beyond per-run wall-clock timings")
+a = strip_volatile(json.loads(gzip.open(sys.argv[1]).read()))
+b = strip_volatile(json.loads(gzip.open(sys.argv[2]).read()))
+sys.exit(0 if a == b else "exports differ beyond per-run wall-clock timings")
 PYEOF
     then
         fail "$f differs from the tracked export (beyond wall-clock timings) — regenerate with neoforge.export_ui before serving"
