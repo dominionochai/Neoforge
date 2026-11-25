@@ -46,7 +46,10 @@ stage() { # stage <case> <stage>
         --work-dir "$ROOT/work" --cases-dir "$ROOT/cases" --refs-dir "$REFS"
 }
 
-for st in ingest variants translate present prioritize report; do
+# skcm_d9a3z1 runs through translate only: without HLA-resolved data the
+# present stage refuses, and downstream stages construct nothing on partial
+# chains — the refusal is the integrity mechanism, not a failure.
+for st in ingest variants translate present prioritize report construct; do
     stage hcc1395 "$st"
 done
 for st in ingest variants translate; do

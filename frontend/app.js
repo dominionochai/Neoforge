@@ -157,6 +157,8 @@ const VIEWS = [
   { id: "tesla",       num: "L4",  label: "TESLA benchmark",         render: viewTesla },
   { id: "workbench",   num: "WB",  label: "Analysis workbench",      render: viewWorkbench },
   { id: "report",      num: "6",   label: "Research report",         render: viewReport },
+  { id: "construct",   num: "7",   label: "Construct (design)",      render: viewConstruct },
+  { id: "rosie",       num: "",    label: "Rosie pathway mapping",   render: viewRosie },
 ];
 
 function renderNav(active) {
@@ -305,6 +307,8 @@ function viewOverview() {
           <li>L4 — <a href="#/tesla">TESLA benchmark</a>: external, cohort-level audit of the ranking rule.</li>
           <li>WB — <a href="#/workbench">workbench</a> · 6 — <a href="#/report">research report</a>: provenance, uncertainty, export.</li>
         </ul>
+          <li>Step 7 — <a href="#/construct">construct (design)</a>: an in-silico polyepitope research design — every epitope choice ledgered, never a manufacturable claim.</li>
+          <li><a href="#/rosie">Rosie pathway mapping</a>: the reported dog case, step by step, mapped to what NEOFORGE does and does not do.</li>
       </div>
       <div class="notice" style="margin:14px 0">
         <span class="ttl">Deliberately absent from every screen</span>
@@ -1120,6 +1124,256 @@ function viewReport() {
     catch { e.target.textContent = "clipboard blocked"; }
     setTimeout(() => { e.target.textContent = "copy markdown"; }, 1600);
   });
+}
+
+/* ---------------- construct (design layer) ---------------- */
+
+function constructMapSVG(c) {
+  const segments = c.nucleotide_map;
+  const aaTotal = segments.reduce((s, seg) => s + (seg.aa ? seg.aa.length : 0), 0);
+  if (!aaTotal) return "";
+  const W = 940, H = 92, pad = 10, barY = 34, barH = 26;
+  const scale = (W - 2 * pad) / aaTotal;
+  const flagByJunction = {};
+  for (const r of c.junction_audit.final_rows) flagByJunction[r.junction] = flagByJunction[r.junction] || (r.flagged ? 1 : 0);
+  const jColors = { placeholder: ["none", "var(--faint)", "6 3"],
+                    design_assumption: ["var(--accent-soft)", "var(--accent)", ""],
+                    linker: ["#58a6ff33", "var(--l2)", ""],
+                    selected_epitope: ["var(--accent-soft)", "var(--accent)", ""] };
+  const epitopeEnds = [];
+  let aa = 0;
+  let svg = "", chips = [];
+  for (const seg of segments) {
+    const isAA = !!seg.aa;
+    const w = isAA ? Math.max(3, seg.aa.length * scale) : 14;
+    const [fill, stroke, dash] = jColors[seg.kind] || ["none", "var(--line)", ""];
+    const x = isAA ? pad + aa * scale : pad + Math.min(aa * scale, W - pad - w);
+    if (seg.kind === "selected_epitope") epitopeEnds.push({ end: aa + seg.aa.length, flag: null });
+    if (isAA) aa += seg.aa.length;
+    svg += `<rect x="${x.toFixed(1)}" y="${barY}" width="${w.toFixed(1)}" height="${barH}" fill="${fill}" stroke="${stroke}" stroke-width="1" ${dash ? `stroke-dasharray="${dash}"` : ""} rx="2"><title>${esc(seg.name)}${seg.aa ? ` \u00b7 ${seg.aa.length} aa` : ""} \u00b7 ${esc(seg.kind)}${seg.note ? " \u00b7 " + esc(seg.note) : ""}</title></rect>`;
+    if (seg.kind === "selected_epitope") {
+      const idx = epitopeEnds.length;
+      if (w > 26) svg += `<text class="axis" x="${(x + w / 2).toFixed(1)}" y="${barY + 17}" text-anchor="middle">E${idx}</text>`;
+      chips.push(`<span class="tag ok" title="${esc(seg.allele)} \u00b7 ${num(seg.mutant_affinity_nm, 1)} nM predicted">E${idx} ${esc(seg.aa)}</span>`);
+    } else if (w > 18) {
+      svg += `<text class="axis" x="${(x + w / 2).toFixed(1)}" y="${barY + 44}" text-anchor="middle">${esc(seg.name.split(":")[0].split(" ")[0])}</text>`;
+    }
+  }
+  for (let j = 0; j < epitopeEnds.length - 1; j++) {
+    const bx = pad + (epitopeEnds[j].end + 1.5) * scale;
+    const flagged = (flagByJunction[j] || 0) > 0;
+    svg += flagged
+      ? `<polygon points="${bx.toFixed(1)},${barY - 8} ${(+bx - 4).toFixed(1)},${barY - 1} ${(+bx + 4).toFixed(1)},${barY - 1}" fill="var(--bad)"><title>junction ${j}: creates newly flagged strong binders across at least one allele</title></polygon>`
+      : `<line x1="${bx.toFixed(1)}" y1="${barY - 6}" x2="${bx.toFixed(1)}" y2="${barY - 1}" stroke="var(--faint)"/><title>junction ${j}: no newly flagged strong binder</title>`;
+  }
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="schematic construct map"
+    style="max-width:${W}px;width:100%">
+    <line x1="${pad}" y1="${barY + barH}" x2="${W - pad}" y2="${barY + barH}" stroke="var(--line)"/>
+    <text class="axis" x="${pad}" y="12">schematic research-design map \u2014 block lengths proportional to residue count; NOT a predicted molecular structure</text>
+    ${svg}</svg>
+    <p class="small" style="line-height:2.1">
+      <span class="tag l4" title="declared design assumption, not a validation">design assumption</span>
+      <span class="tag l2" title="MHC-I AAY linkers between epitopes">linker ${esc(c.nucleotide_stats.linker)}</span>
+      placeholders (dashed): 5'UTR, 3'UTR, poly(A) \u2014 labelled, not simulated.
+      &nbsp;${chips.join(" ")}</p>`;
+}
+
+function viewConstruct() {
+  const d = state.data;
+  const c = d.construct;
+  if (!c) {
+    app.innerHTML = caseHeader(d, "Construct (design)", "Why is there no construct design for this case?") +
+      `<div class="notice red"><span class="ttl">No construct artifact in this case's export.</span><br>
+      The construct stage is mechanically gated: it requires the full L1\u2013L3 chain (including HLA-resolved
+      presentation predictions) and at least one Tier A candidate that survives every documented selection rule.
+      This case's chain stops before those gates \u2014 and a refused stage must not look like missing polish;
+      it <em>is</em> the honesty mechanism. ${stageSourceLine(d, "prioritize")}</div>`;
+    return;
+  }
+  const cs = c.case_summary, st = c.nucleotide_stats;
+  const flags = c.junction_audit.final_flagged_junction_peptides;
+  const byJunction = {};
+  for (const r of c.junction_audit.final_rows) {
+    byJunction[r.junction] = byJunction[r.junction] || { rows: 0, flagged: 0, peptides: new Set() };
+    const b = byJunction[r.junction];
+    b.rows++; if (r.flagged) b.flagged++;
+    b.peptides.add(r.peptide);
+  }
+  const jEntries = Object.keys(byJunction).map(Number).sort((a, b) => a - b)
+    .map((j) => ({ label: `J${j + 1}`, value: byJunction[j].flagged,
+                   color: byJunction[j].flagged ? "var(--bad)" : "var(--faint)" }));
+  const flaggedRows = c.junction_audit.final_rows.filter((r) => r.flagged);
+  const nCheck = (k, good) => `<span class="tag ${good ? "ok" : "bad"}">${esc(k)}</span>`;
+  app.innerHTML = `
+    ${caseHeader(d, "Construct (design)", "From the prioritised tier-A shortlist to an in-silico polyepitope research design \u2014 what would a vaccine-research construct look like, reductively, and why every choice is ledgered.")}
+    <div class="notice red"><span class="ttl">${esc(c.stamp)}</span><br>
+      ${esc(c.non_claims.join(" "))}</div>
+    ${stageSourceLine(d, "construct")}
+
+    <div class="card">
+      <h3 style="margin-top:0">Construct map \u2014 ${nfmt(st.protein_length_aa)} aa encoded by ${nfmt(st.cds_length_nt)} nt</h3>
+      ${constructMapSVG(c)}
+    </div>
+
+    <div class="card">
+      <h3 style="margin-top:0">Selection ledger \u2014 ${nfmt(cs.epitopes_selected)} included \u00b7 ${nfmt(cs.epitopes_excluded_ledgered)} ledgered exclusions</h3>
+      <div class="stats">
+        <div class="stat"><div class="v">${nfmt(cs.epitopes_selected)}</div><div class="k">epitopes included \u00b7 tier-A pool ${nfmt(cs.tier_a_candidates)} \u00b7 cap ${nfmt(c.parameters.max_epitopes)}</div></div>
+        <div class="stat"><div class="v">${nfmt(cs.alleles_covered.length)} / ${nfmt(cs.case_alleles.length)}</div><div class="k">case HLA alleles covered by the selection</div></div>
+        <div class="stat"><div class="v">${nfmt(cs.genes_covered.length)}</div><div class="k">genes covered (diversity preference)</div></div>
+        <div class="stat"><div class="v">${nfmt(c.exclusion_reason_counts["no_mutant_vs_wild_type_discrimination"] || 0)}</div><div class="k">dropped: mutant\u2260wild-type discrimination absent</div></div>
+      </div>
+      <table><thead><tr><th>variant</th><th>peptide</th><th>allele</th><th>gene</th>
+        <th class="num">mutant nM (L3)</th><th class="num">ref nM (L3)</th><th>selection reason</th></tr></thead><tbody>
+        ${c.selection_ledger_included.map((e) => `
+          <tr><td class="mono"><a href="#/protein?variant=${encodeURIComponent(e.variant_key)}">${esc(e.variant_key)}</a></td>
+          <td class="mono">${esc(e.peptide)}</td><td class="small">${esc(e.allele)}</td>
+          <td class="small mono">${esc(e.gene_id)}</td>
+          <td class="num">${num(e.mutant_affinity_nm, 1)}</td>
+          <td class="num">${num(e.reference_affinity_nm, 1)}</td>
+          <td class="small">${esc(e.selection_reason)}</td></tr>`).join("")}
+      </tbody></table>
+      <h3>Exclusions \u2014 every mutation leaves the pool through a documented door</h3>
+      <p class="small">${Object.entries(c.exclusion_reason_counts).map(([r, n]) =>
+        `<span class="tag ${r === "not_tier_A" ? "missing" : "warn"}" title="${esc(r)}">${nfmt(n)} \u00d7 ${esc(r)}</span>`).join(" ")}</p>
+      <details class="full"><summary>inspect all ${nfmt(c.selection_ledger_excluded.length)} ledgered exclusions</summary><div style="max-height:320px;overflow-y:auto">
+      <table><thead><tr><th>variant</th><th>reason</th><th>detail</th></tr></thead><tbody>
+        ${c.selection_ledger_excluded.map((e) => `
+          <tr><td class="mono small">${esc(e.variant_key)}</td><td class="small">${esc(e.reason)}</td>
+          <td class="small dim">${esc(e.detail || "")}</td></tr>`).join("")}
+      </tbody></table></div></details>
+    </div>
+
+    <div class="two-col">
+      <div class="card">
+        <h3 style="margin-top:0">Junction audit \u2014 what the joins might create</h3>
+        <p class="small dim">Every 8\u201311-mer spanning an epitope\u2013${esc(c.parameters.linker)} join was scored
+        ${layerTag("l3", "L3 predicted")} with ${esc(c.junction_audit.predictor.software)} against every case
+        allele (<span class="mono">${nfmt(c.junction_audit.final_rows.length)}</span> rows). A new strong binder
+        (${num(c.parameters.junction_flag_threshold_nm, 0)} nM) created by a join is flagged, never averaged away.</p>
+        <div class="stats">
+          <div class="stat"><div class="v" style="color:${flags ? "var(--bad)" : "var(--l1)"}">${nfmt(flags)}</div><div class="k">final flagged junction peptides \u00b7 initial ordering had ${nfmt(c.junction_audit.history[0].flagged_junction_peptides)}</div></div>
+        </div>
+        ${jEntries.length ? `<p class="small dim">flagged peptides per junction:</p>${barChartSVG(jEntries, { width: 470, labelW: 34 })}` : ""}
+        <details class="full"><summary>audit history (${c.junction_audit.history.length} steps, accepted orderings must be monotone)</summary><div>
+          <table><thead><tr><th>action</th><th class="num">flagged</th><th>accepted</th></tr></thead><tbody>
+          ${c.junction_audit.history.map((h) => `<tr><td class="small">${esc(h.action)}</td>
+            <td class="num">${nfmt(h.flagged_junction_peptides)}</td>
+            <td>${h.accepted ? '<span class="tag ok">yes</span>' : '<span class="tag missing">no</span>'}</td></tr>`).join("")}
+          </tbody></table></div></details>
+        <details class="full"><summary>all flagged rows (${nfmt(flaggedRows.length)})</summary><div style="max-height:280px;overflow-y:auto;border:1px solid var(--line-soft);border-radius:8px">
+          <table><thead><tr><th class="num">junction</th><th>peptide</th><th class="num">len</th><th>allele</th>
+          <th class="num">pred. nM</th></tr></thead><tbody>
+          ${flaggedRows.map((r) => `<tr><td class="num">J${r.junction + 1}</td><td class="mono">${esc(r.peptide)}</td>
+            <td class="num">${r.length}</td><td class="small">${esc(r.allele)}</td>
+            <td class="num">${num(r.mhcflurry_affinity_nm, 1)}</td></tr>`).join("")}
+          </tbody></table></div></details>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0">Back-transcription \u2014 codons, checked, not asserted</h3>
+        <p class="small">${nCheck("translation matches design", c.sequence_checks.translation_matches_design)}
+          ${nCheck("0 internal stop codons", c.sequence_checks.internal_stop_codons === 0)}
+          ${nCheck("starts with ATG", c.sequence_checks.cds_starts_with_atg)}
+          <span class="tag missing" title="UTR / poly(A) are labelled placeholders">UTRs + poly(A) placeholders</span>
+          <span class="tag missing" title="N1-methylpseudouridine, modified nucleosides, formulation \u2014 not simulated">mRNA chemistry not simulated</span></p>
+        <dl class="kv">
+          <dt>CDS length</dt><dd>${nfmt(st.cds_length_nt)} nt (${nfmt(st.protein_length_aa)} aa + ${esc(c.sequence_checks.stop_codon)} stop)</dd>
+          <dt>GC content</dt><dd>${num(st.gc_percent, 2)}%</dd>
+          <dt>codon table</dt><dd class="wrap small">${esc(c.parameters.codon_table.derivation)} \u00b7 sha256 <span class="mono">${shortSha(c.parameters.codon_table.sha256)}</span></dd>
+          <dt>homopolymer mitigation</dt><dd>${esc(c.reverse_translation.codon_choices_summary)} (threshold ${st.codon_run_threshold ?? c.parameters.max_homopolymer_run})</dd>
+          <dt>homopolymer runs \u2265 5</dt><dd>${st.homopolymer_runs_ge5.length ? st.homopolymer_runs_ge5.map((r) => `${esc(r.base)}\u00d7${r.length} @${r.start}`).join(", ") : "none"}</dd>
+          <dt>restriction sites</dt><dd>${Object.keys(st.restriction_sites).length
+            ? Object.entries(st.restriction_sites).map(([k, v]) => `${esc(k)} ${esc(v.site)} \u00d7${v.positions_0based.length}`).join(", ")
+            : "none in the ${nfmt(12)}-enzyme documented panel"}</dd>
+          <dt>linkers</dt><dd>${nfmt(st.linker_count)} \u00d7 ${esc(st.linker)} (published MHC-I convention)</dd>
+          <dt>signal peptide</dt><dd class="wrap small">${esc(c.parameters.signal_peptide)} \u2014 ${esc(c.parameters.signal_peptide_source)}</dd>
+          <dt>trafficking tag</dt><dd class="wrap small">${esc(c.parameters.trafficking_tag)} \u2014 ${esc(c.parameters.trafficking_tag_source)}</dd>
+          <dt>FASTA export</dt><dd class="mono small">${esc(c.fasta_file)}</dd>
+        </dl>
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div class="card">
+        <h3 style="margin-top:0">Design assumptions (declared, not validated)</h3>
+        <ul class="small dim">${c.design_assumptions.map((a) => `<li>${esc(a)}</li>`).join("")}</ul>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0">Uncertainty register</h3>
+        <ul class="small dim">${c.uncertainty_register.map((a) => `<li>${esc(a)}</li>`).join("")}</ul>
+        <p class="small dim">Inputs, hashed: ${Object.entries(c.inputs).map(([k, v]) =>
+          `${esc(k)} <span class="mono">${esc(v.artifact_id)}</span>`).join(" \u00b7 ")}</p>
+      </div>
+    </div>`;
+}
+
+/* ---------------- rosie pathway mapping ---------------- */
+
+const ROSIE_STEPS = [
+  { step: "1 \u00b7 Tumour + normal-tissue sequencing", target: "Stage 1 \u2014 ingest (L1 measured)",
+    does: "Consumes public, licensed sequencing files; validates tumour\u2013normal pairing, depth, TVAF coverage and HLA typing, with per-input SHA-256 provenance.",
+    not: "NEOFORGE does not sequence anything \u2014 no sample acquisition, no novel patient data." },
+  { step: "2 \u00b7 Mutation analysis (tumour vs normal)", target: "Stage 2 \u2014 variants (L1)",
+    does: "Tumour-vs-normal SNV comparison with a conservation ledger; measured TVAF and depth carried through; patient-barcode gates for same-patient integrity.",
+    not: "No de novo variant discovery beyond documented filters; INDELs are recorded out of scope (v0.1), not hidden." },
+  { step: "3 \u00b7 Neoantigen investigation (derive fragments)", target: "Stage 3 \u2014 translate (L2 derived)",
+    does: "Derives mutant vs reference peptide windows from genome + GENCODE; every derived window verified against official protein translations.",
+    not: "Not a structure model; no proteasomal-processing or transport prediction beyond what MHCflurry provides." },
+  { step: "4 \u00b7 HLA-restricted presentation assessment", target: "Stage 4 \u2014 present (L3 predicted)",
+    does: "Per-allele MHCflurry binding + presentation predictions, mutant vs reference windows, wrapper-only use with versioned provenance.",
+    not: "Predicted binding is NOT predicted immunogenicity; unsupported alleles are refused, never imputed." },
+  { step: "5 \u00b7 Candidate assessment & prioritisation", target: "Stage 5 \u2014 prioritise + L4 TESLA audit",
+    does: "Explainable tiering on published thresholds (500 nM, TPM, VAF) \u2014 no composite score; ranking rule audited against TESLA experimental labels (cohort-level).",
+    not: "No candidate-level immunogenicity label exists for this case's variants; the TESLA audit validates a rule, not a patient." },
+  { step: "6 \u00b7 Protein modelling", target: "\u2014 not implemented in this pass",
+    does: "Declared deferred: conceptual molecular illustrations are labelled as conceptual in the interface.",
+    not: "No structure prediction is presented as performed; no mislabelled protein models." },
+  { step: "7 \u00b7 Construct design (mRNA)", target: "Stage 7 \u2014 construct (design layer)",
+    does: "In-silico polyepitope research design from tier-A candidates: ledgered selection, MHC-I linkers, junction audit, pinned-codon back-translation, hashed artifact.",
+    not: "A research design stamp \u2014 not manufacturable, not validated, not a vaccine; mRNA chemistry not simulated." },
+  { step: "8 \u00b7 Scientific collaboration & review", target: "Provided-for, not replaced",
+    does: "Every artifact carries provenance, uncertainty registers and non-claims so qualified researchers can review the full evidence chain.",
+    not: "NEOFORGE does not substitute expert review; review is a human step outside the software." },
+  { step: "9 \u00b7 Experimental development & administration", target: "Outside NEOFORGE entirely",
+    does: "Nothing \u2014 and the interface says so on every relevant screen.",
+    not: "No claim of creating, validating or administering a vaccine for humans or animals." },
+];
+
+function viewRosie() {
+  app.innerHTML = `
+    <h1>Rosie pathway mapping</h1>
+    <p class="sub">The reported case of Paul Conyngham and his dog Rosie \u2014 a computationally investigated,
+    personalised cancer-vaccine case \u2014 is this project's inspiration. This page maps each reported step of that
+    research pathway to what NEOFORGE implements, what it explicitly does not do, and where human expertise and
+    the laboratory take over.</p>
+    <div class="notice"><span class="ttl">What this page is and is not.</span> The left column is an
+    <em>informal narrative mapping</em> based on public reporting of the case, not a verified reproduction of its
+    data or methods. NEOFORGE runs its own demonstration cases (a human truth set and an open melanoma case);
+    it does not contain Rosie's tumour data, and no outcome \u2014 hers or anyone's \u2014 is claimed, implied or
+    predicted by anything in this software.</div>
+    <div class="card">
+      <table><thead><tr><th>Reported step</th><th>NEOFORGE equivalent</th><th>What NEOFORGE does</th>
+        <th>What NEOFORGE does not do</th></tr></thead><tbody>
+        ${ROSIE_STEPS.map((s) => `
+          <tr><td class="small"><strong>${esc(s.step)}</strong></td>
+          <td class="small">${esc(s.target)}</td>
+          <td class="small">${esc(s.does)}</td>
+          <td class="small dim">${esc(s.not)}</td></tr>`).join("")}
+      </tbody></table>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">The human-HLA vs canine-DLA gap</h3>
+      <p class="small">Dogs have dog leukocyte antigen (DLA) haplotypes, not human HLA. The presentation predictor
+      integrated here (MHCflurry) models human class-I alleles only. A Rosie-like canine case therefore cannot be
+      run faithfully through this pipeline today: HLA-restricted design on a dog's DLA-typed tumour would be
+      unsupported-by-evidence prediction, which the build stage explicitly refuses rather than imputes. Supporting
+      canine DLA alleles would require a validated canine predictor \u2014 an honest research gap, recorded here and
+      in the construct artifact's uncertainty register rather than papered over.</p>
+      <p class="small dim">The reported Rosie pathway also depended on things no software can supply: qualified
+      researchers, veterinarians, a research institution's experimental capability, and regulatory oversight.
+      NEOFORGE's contribution is confined to the computable prefix of that pathway \u2014 and those boundaries appear
+      verbatim in every artifact's non-claims.</p>
+    </div>`;
 }
 
 /* ---------------- boot ---------------- */
