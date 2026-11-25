@@ -164,11 +164,13 @@ def export_tesla(store: ArtifactStore) -> dict | None:
         "non_claims": payload["non_claims"],
         "metrics": payload["metrics"],
         "rank_rule_falsified": payload["rank_rule_falsified"],
+        "rule_ablation": payload.get("rule_ablation"),
         "validated_predictions": {
             "columns": rows["columns"],
             "columns_dropped": [c for c in rows["columns"] if c not in
                                 ("pmhc_id", "peptide", "allele", "mhcflurry_affinity_nm",
-                                 "rank", "validated", "measured_binding_affinity_nm")],
+                                 "rank", "validated", "measured_binding_affinity_nm",
+                                 "mhcflurry_presentation_score")],
             **{c: [rows[c][i] for i in range(n) if rows["validated"][i]] for c in rows["columns"]},
         },
         "validated_pmhc_ids": validated_rows,

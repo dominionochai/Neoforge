@@ -9,6 +9,8 @@ description = "NEOFORGE computational neoantigen research pipeline: evidence-dis
 requires-python = ">=3.11"
 dependencies = [
     "requests>=2.31",
+    "pandas>=2.0",
+    "openpyxl>=3.1",
 ]
 
 [project.optional-dependencies]

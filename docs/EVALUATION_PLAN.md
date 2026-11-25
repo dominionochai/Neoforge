@@ -105,13 +105,25 @@ Executed against the real HCC1395/SEQC2 case (branch state at this commit):
   **TTIF top-20% = 0.541** vs random expectation 0.200 (2.7× enrichment;
   oracle headroom 1.0); **AUPRC = 0.153** vs random expectation 0.061;
   median rank of validated = 116 of 608; `rank_rule_falsified = False`
-  recorded inside the `tesla_eval` artifact (`7adbb53cb1d56ee4`). Honesty
+  recorded inside the `tesla_eval` artifact (`7ef67c3674c2566f`, including rank@k curve and rule ablation). Honesty
   notes: n=37 positives → wide confidence intervals; this is cohort-level
   evidence about the *ranking rule*, never a patient-level or candidate-level
   immunogenicity claim; candidate-level L4 evidence remains absent by design.
   The report stage embeds this reference (`tesla_cohort_reference`) only when
   the tesla_eval artifact exists in the store, and its uncertainty register
-  reports the audit as `info` — verdict included verbatim.
+  reports the audit as `info` — verdict included verbatim. Additional
+  falsification-adjacent outputs, both on the SAME labels (no new score):
+  * **rank@k curve** — fraction of validated found in the top k% of the
+    ranking (k = 1, 2, 5, 10, 20, 30, 50) vs the analytic random expectation
+    k/100; the k=20 point equals the TTIF headline. Enrichment exceeds random
+    at every k ≥ 10 (e.g. 78.4% found in the top 30% vs 30% random).
+  * **rule ablation** — the same candidates re-ranked by *descending
+    presentation score*: TTIF 0.595, AUPRC 0.210, median rank 111 — i.e. on
+    this benchmark the presentation-score ordering slightly OUTPERFORMS the
+    published affinity rule. Recorded honestly in the artifact, CLI output and
+    interface (`rule_ablation`); the affinity rule is not falsified, but this
+    is a documented candidate improvement for future iterations, not a hidden
+    result.
 - **Second case (TCGA-SKCM `skcm_d9a3z1`), L1 ingestion + L2 derivation:**
  executed end-to-end on open GDC data (588 SNVs, 3 INDELs from the ensemble
  masked MAF; same-patient barcode gate = pass; hla.unavailable warns and the

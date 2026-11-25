@@ -83,6 +83,9 @@ def _emit_tesla(result: dict) -> int:
     print(f"  auprc: {m['auprc']:.3f} (random {m['auprc_random_expectation']:.3f}, "
           f"oracle {m['auprc_oracle']:.3f})")
     print(f"  median rank of validated: {m['median_rank_of_validated']}")
+    for e in (p.get("rule_ablation") or {}).get("entries", []):
+        print(f"  ablation [{e['criterion']}]: ttif {e['ttif_top20pct']:.3f}, auprc {e['auprc']:.3f}, "
+              f"median rank {e['median_rank_of_validated']}")
     print(f"  falsification verdict ({p['parameters']['falsification_clause']}): {verdict}")
     return 0
 

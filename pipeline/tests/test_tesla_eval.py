@@ -4,7 +4,8 @@ The metric math (TTIF, validated_in_top20, AUPRC) is pinned against
 hand-computable orderings; the real benchmark run is separate. The fake
 predictor gives affinity = 10 + ord(peptide[0]) - ord('A'), so ordering is
 engineerable from the peptide column alone: 'A' peptides score 10.0, 'Z'
-peptides 35.0."""
+peptides 35.0. presentation_score deliberately ranks in the OPPOSITE order
+(A=8.0, Z=33.0) so the rule-ablation orders differ by construction."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -24,7 +25,7 @@ class FakePredictor:
         return pd.DataFrame({
             "peptide": list(peptides),
             "affinity": [10.0 + ord(p[0]) - ord("A") for p in peptides],
-            "presentation_score": [0.5] * len(peptides),
+            "presentation_score": [8.0 + (ord(p[0]) - ord("A")) for p in peptides],
             "presentation_percentile": [0.4] * len(peptides),
         })
 
@@ -99,3 +100,56 @@ def test_evaluation_is_deterministic(tmp_path: Path) -> None:
     one = run_tesla_evaluation(ArtifactStore(tmp_path / "w1"), xlsx, factory)
     two = run_tesla_evaluation(ArtifactStore(tmp_path / "w2"), xlsx, factory)
     assert one["sha256"] == two["sha256"]
+
+def write_reverse_xlsx(path: Path) -> None:
+    """Two validated 'A' peptides and eight 'Z' decoys on one allele. The fake
+    predictor's presentation_score deliberately ranks Z>peptides highest, so
+    the presentation-score ordering is the mirror of the affinity ordering."""
+    rows = [("APEPTIDE1", "A*01:01", True), ("APEPTIDE2", "A*01:01", True)]
+    rows += [(f"ZPEPTIDE{i}", "A*01:01", False) for i in range(8)]
+    write_xlsx(path, rows)
+
+
+def test_rule_ablation_discriminates_criteria(tmp_path: Path) -> None:
+    xlsx = tmp_path / "labels.xlsx"
+    write_reverse_xlsx(xlsx)
+    out = run_tesla_evaluation(ArtifactStore(tmp_path / "work"), xlsx, factory)
+    entries = {e["criterion"].split(" (")[0]: e for e in out["payload"]["rule_ablation"]["entries"]}
+    aff = entries["ascending mhcflurry_affinity_nm"]
+    pres = entries["descending mhcflurry_presentation_score"]
+    assert aff["ttif_top20pct"] == 1.0 and pres["ttif_top20pct"] == 0.0
+    assert aff["auprc"] == 1.0 and pres["auprc"] == pytest.approx((1 / 2) * (1 / 9) + (1 / 2) * (2 / 10))
+    assert aff["median_rank_of_validated"] < pres["median_rank_of_validated"]
+    assert out["payload"]["metrics"]["ttif_top20pct"] == 1.0
+
+
+def test_rank_curve_matches_hand_computed_points(tmp_path: Path) -> None:
+    xlsx = tmp_path / "labels.xlsx"
+    write_reverse_xlsx(xlsx)
+    out = run_tesla_evaluation(ArtifactStore(tmp_path / "work"), xlsx, factory)
+    curve = out["payload"]["metrics"]["rank_at_k_curve"]
+    assert curve["k_pct"] == [1, 2, 5, 10, 20, 30, 50]
+    assert curve["cut_rank"] == [0, 0, 0, 1, 2, 3, 5]
+    assert curve["found_fraction"][0] == 0.0
+    assert curve["found_fraction"][4] == 1.0 and curve["found_fraction"][6] == 1.0
+    assert curve["random_expectation"] == [0.01, 0.02, 0.05, 0.1, 0.2, 0.3, 0.5]
+
+
+def test_ablation_recorded_unavailable_without_presentation_scores(tmp_path: Path) -> None:
+    class AffinityOnlyPredictor:
+        supported_alleles = ["HLA-A*01:01"]
+
+        def predict(self, peptides, alleles, verbose=0):
+            return pd.DataFrame({
+                "peptide": list(peptides),
+                "affinity": [10.0] * len(peptides),
+            })
+
+    xlsx = tmp_path / "labels.xlsx"
+    write_reverse_xlsx(xlsx)
+    out = run_tesla_evaluation(ArtifactStore(tmp_path / "work"), xlsx,
+                               lambda: (AffinityOnlyPredictor(), "aff-only-1.0", "AffinityOnly"))
+    ablation = out["payload"]["rule_ablation"]
+    assert ablation["entries"] == []
+    assert "did not provide presentation_score" in ablation["note"]
+    assert out["payload"]["predictions"]["mhcflurry_presentation_score"][0] is None

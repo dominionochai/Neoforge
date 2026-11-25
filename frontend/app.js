@@ -87,6 +87,24 @@ function barChartSVG(entries, { width = 560, labelW = 52, color = "var(--l2)" } 
   return `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="bar chart" style="max-width:${width}px">${rows.join("")}</svg>`;
 }
 
+function curveSVG(curve, { width = 560, height = 210, color = "var(--accent)", base = "var(--faint)" } = {}) {
+  const k = curve.k_pct, found = curve.found_fraction, rnd = curve.random_expectation;
+  const pad = { l: 38, r: 12, t: 12, b: 26 };
+  const iw = width - pad.l - pad.r, ih = height - pad.t - pad.b;
+  const to = (i, v) =>
+    `${(pad.l + (i / (k.length - 1)) * iw).toFixed(1)},${(pad.t + ih - v * ih).toFixed(1)}`;
+  const poly = (vals, col, dash) =>
+    `<polyline fill="none" stroke="${col}" stroke-width="2" ${dash ? `stroke-dasharray="4 4"` : ""}
+      points="${vals.map((v, i) => to(i, v)).join(" ")}"/>`;
+  const dots = found.map((v, i) =>
+    `<circle cx="${(pad.l + (i / (k.length - 1)) * iw).toFixed(1)}" cy="${(pad.t + ih - v * ih).toFixed(1)}" r="3" fill="${color}"><title>top ${k[i]}%: ${(100 * v).toFixed(1)}% of validated (random expect ${(100 * rnd[i]).toFixed(0)}%)</title></circle>`).join("");
+  return `<svg viewBox="0 0 ${width} ${height}" style="max-width:${width}px" role="img" aria-label="rank at k curve">
+    ${poly(rnd, base, true)}${poly(found, color, false)}${dots}
+    ${k.map((kk, i) => `<text class="axis" x="${(pad.l + (i / (k.length - 1)) * iw).toFixed(1)}" y="${height - 8}" text-anchor="middle">${kk}%</text>`).join("")}
+    <text class="axis" x="4" y="${pad.t + 4}">1.0</text>
+    <line x1="${pad.l}" y1="${pad.t + ih}" x2="${width - pad.r}" y2="${pad.t + ih}" stroke="var(--line)"/></svg>`;
+}
+
 /* ---------------- state, data, routing ---------------- */
 
 const CASES = [
@@ -866,6 +884,30 @@ function viewTesla() {
         <dt>ranking</dt><dd>${esc(t.parameters.ranking)}</dd>
         <dt>scale</dt><dd>${nfmt(m.n_candidates)} pMHC · ${m.n_patients} patients · ${m.n_alleles} alleles</dd>
       </dl>
+    </div>
+
+    <div class="two-col">
+      <div class="card">
+        <h3 style="margin-top:0">Fraction of validated pMHC found in the top k% of the ranking</h3>
+        <p class="small dim">Solid line: the published affinity ranking. Dashed: analytic random expectation (k/100).
+        Every point above the dashed line is enrichment the rule earns; the k=20% point is the TTIF headline.</p>
+        ${curveSVG(m.rank_at_k_curve)}
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0">Rule ablation — same labels, different ordering criteria</h3>
+        ${t.rule_ablation && t.rule_ablation.entries.length ? `
+        <table><thead><tr><th>ordering criterion</th><th class="num">TTIF top 20%</th>
+          <th class="num">AUPRC</th><th class="num">median rank</th></tr></thead><tbody>
+          ${t.rule_ablation.entries.map((e) => `
+            <tr><td class="wrap small">${esc(e.criterion)}${e.criterion.includes("published") ? " ← rule under test" : ""}</td>
+            <td class="num">${num(e.ttif_top20pct, 3)}</td>
+            <td class="num">${num(e.auprc, 3)}</td>
+            <td class="num">${num(e.median_rank_of_validated)}</td></tr>`).join("")}
+        </tbody></table>
+        <p class="small dim">${esc(t.rule_ablation.note)}</p>` :
+        `<div class="notice small"><span class="ttl">Ablation unavailable:</span>
+         ${esc(t.rule_ablation ? t.rule_ablation.note : "not present in this export")} — recorded, not imputed.</div>`}
+      </div>
     </div>
 
     <div class="card">

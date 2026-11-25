@@ -25,6 +25,13 @@ Method (documented exactly in the artifact it writes):
     order) give the headroom of the label set itself.
 Falsification clause (EVALUATION_PLAN): ttif_top20pct <= 0.2 falsifies the
 prioritisation design; the artifact records the verdict either way.
+
+Two falsification-adjacent additions, both on the SAME labels (no new score):
+- rank_at_k_curve: fraction of validated found in the top k% of the ranking,
+  k on a fixed grid, each against its analytic random expectation k/100;
+- rule_ablation: the same candidates re-ranked by descending presentation
+  score — does the published affinity criterion actually beat its sibling?
+  Absent presentation scores are recorded as an unavailable ablation.
 """
 from __future__ import annotations
 
@@ -54,6 +61,44 @@ def load_labels(xlsx_path) -> dict:
     }
 
 
+def _rank_curve(validated: list[bool], rank: list[int]) -> dict:
+    """Fraction of VALIDATED found within the top k% of the ranked list, for a
+    fixed k grid, each against its analytic random expectation k/100. The cut
+    convention matches ttif_top20pct (floor cut) so the k=20 point equals it."""
+    n = len(rank)
+    out = {"k_pct": [], "found_fraction": [], "random_expectation": [], "cut_rank": []}
+    n_validated = sum(validated)
+    for k in (1, 2, 5, 10, 20, 30, 50):
+        cut = (k * n) // 100
+        out["k_pct"].append(k)
+        out["cut_rank"].append(cut)
+        out["found_fraction"].append(
+            sum(1 for i in range(n) if validated[i] and rank[i] <= cut) / n_validated)
+        out["random_expectation"].append(min(1.0, k / 100))
+    return out
+
+
+def _ablate(validated: list[bool], orders: dict[str, list[int]]) -> list[dict]:
+    """The same labels consumed under different published ordering criteria —
+    does the headline criterion actually beat its siblings? No new score is
+    invented: each entry re-ranks the SAME predictions by one field."""
+    n = len(validated)
+    rows = []
+    for criterion, order in orders.items():
+        rank = [0] * n
+        for position, i in enumerate(order, start=1):
+            rank[i] = position
+        n_validated = sum(validated)
+        cut = (20 * n) // 100
+        rows.append({
+            "criterion": criterion,
+            "ttif_top20pct": sum(1 for i in range(n) if validated[i] and rank[i] <= cut) / n_validated,
+            "auprc": _auprc(validated, order),
+            "median_rank_of_validated": sorted(rank[i] for i in range(n) if validated[i])[n_validated // 2],
+        })
+    return rows
+
+
 def _auprc(labels: list[bool], consumption_order: list[int]) -> float:
     positives = sum(labels)
     seen, tp, area, prev_recall = 0, 0, 0.0, 0.0
@@ -80,6 +125,23 @@ def _predict_affinity_by_pair(predictor, pairs: list[tuple[str, str]],
     return by_pair
 
 
+def _predict_presentation_by_pair(predictor, pairs: list[tuple[str, str]],
+                                  alleles: list[str]) -> dict[tuple[str, str], float | None]:
+    """Optional ablation input: predictors without a presentation_score column
+    get recorded None — the ablation is marked unavailable, never imputed."""
+    by_pair: dict[tuple[str, str], float | None] = {}
+    for allele in alleles:
+        peptides = [p for p, a in pairs if a == allele]
+        if not peptides:
+            continue
+        df = predictor.predict(peptides, alleles=[allele], verbose=0)
+        if "presentation_score" not in df.columns:
+            return {pair: None for pair in pairs}
+        for peptide, score in zip(peptides, df["presentation_score"]):
+            by_pair[(peptide, allele)] = float(score)
+    return by_pair
+
+
 def run_tesla_evaluation(store, xlsx_path, predictor_factory=None) -> dict:
     from neoforge.artifacts import StageRun  # noqa: PLC0415
     from neoforge.stages.present import default_predictor_factory  # noqa: PLC0415
@@ -96,7 +158,9 @@ def run_tesla_evaluation(store, xlsx_path, predictor_factory=None) -> dict:
     n = len(labels["peptide"])
     pairs = list(zip(labels["peptide"], labels["allele"]))
     affinity_by_pair = _predict_affinity_by_pair(predictor, pairs, labels["alleles"])
+    score_by_pair = _predict_presentation_by_pair(predictor, pairs, labels["alleles"])
     affinity = [affinity_by_pair[pair] for pair in pairs]
+    presentation_score = [score_by_pair[pair] for pair in pairs]
 
     order = sorted(range(n), key=lambda i: (affinity[i], labels["peptide"][i], labels["allele"][i]))
     rank = [0] * n
@@ -121,8 +185,25 @@ def run_tesla_evaluation(store, xlsx_path, predictor_factory=None) -> dict:
         "auprc_random_expectation": n_validated / n,
         "auprc_oracle": _auprc(validated, sorted(range(n), key=lambda i: not validated[i])),
         "median_rank_of_validated": sorted(rank[i] for i in range(n) if validated[i])[n_validated // 2],
+        "rank_at_k_curve": _rank_curve(validated, rank),
     }
     falsified = not metrics["ttif_top20pct"] > 0.2
+    if all(v is not None for v in presentation_score):
+        orders = {
+            "ascending mhcflurry_affinity_nm (published rule)": order,
+            "descending mhcflurry_presentation_score":
+                sorted(range(n), key=lambda i: (-presentation_score[i], labels["peptide"][i], labels["allele"][i])),
+        }
+        rule_ablation = {
+            "note": ("same labels consumed under different published ordering criteria; "
+                     "identical tie-break; no new score invented"),
+            "entries": _ablate(validated, orders),
+        }
+    else:
+        rule_ablation = {
+            "note": "predictor did not provide presentation_score; alternative ordering not evaluated",
+            "entries": [],
+        }
     payload = {
         "parameters": {
             "labels": f"{xlsx_path}#{_LABEL_SHEET}",
@@ -141,14 +222,16 @@ def run_tesla_evaluation(store, xlsx_path, predictor_factory=None) -> dict:
         ],
         "metrics": metrics,
         "rank_rule_falsified": falsified,
+        "rule_ablation": rule_ablation,
         "labels": labels,
         "predictions": {
             "columns": ["pmhc_id", "peptide", "allele", "mhcflurry_affinity_nm", "rank",
-                        "validated", "measured_binding_affinity_nm"],
+                        "validated", "measured_binding_affinity_nm", "mhcflurry_presentation_score"],
             "pmhc_id": labels["pmhc_id"],
             "peptide": labels["peptide"],
             "allele": labels["allele"],
             "mhcflurry_affinity_nm": affinity,
+            "mhcflurry_presentation_score": presentation_score,
             "rank": rank,
             "validated": validated,
             "measured_binding_affinity_nm": labels["measured_binding_affinity_nm"],

@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install pipeline package with dev tools
+        run: pip install -e "./pipeline[dev]"
+
+      - name: Fast test suite (real-data tests self-skip without reference data)
+        working-directory: pipeline
+        run: python -m pytest tests -m "not slow" -q
+
+      - name: Frontend script syntax
+        run: node --check frontend/app.js
+
+      - name: Shell scripts syntax
+        run: |
+          for f in scripts/*.sh; do
+            bash -n "$f"
+          done
