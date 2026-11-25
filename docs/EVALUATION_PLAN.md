@@ -74,6 +74,57 @@ patient-level claims.
 below the random baseline's expectation), the prioritisation design is
 falsified and must be revised or presented as exploratory with the failure shown.
 
+## Stage 7 — construct: design-layer verification (in-silico design, never a product claim)
+
+**What the stage is:** a research-only design layer over the L1–L3 chain. It
+generates a candidate polyepitope mRNA *research design* from Tier A
+candidates, with every choice ledgered. It adds no biological prediction of
+its own: a designed construct being selected, transcribed or translated in a
+cell is not simulated and not measured. The output is stamped
+"research design, not a manufacturable or validated sequence" in the artifact,
+the FASTA header and the interface.
+
+**What is objectively verifiable in a design layer** (the metrics below are
+the full set — no expression/immunogenicity metric exists for a construct
+that was never made):
+
+- **Round-trip exactness:** translating the designed CDS must reproduce the
+  designed polyepitope protein residue-for-residue with zero internal stop
+  codons. The stage raises (`ArtifactChainError`) otherwise — the artifact can
+  never record a construct whose own translation disagrees with its design.
+- **Determinism:** identical chain artifacts + pinned inputs (codon-usage
+  table sha256 recorded in the artifact; fixed MHCflurry version recorded for
+  the junction audit) → hash-identical construct artifact.
+- **Mechanical refusals:** no HLA resolved, or the chain stopping before
+  `present`, must refuse — construction is never run on partial or imputed
+  evidence. The junction predictor's allele-coverage check refuses rather
+  than silently skipping unsupported alleles.
+- **Ledger completeness:** every mutation in the tier pool appears in exactly
+  one ledger side, each entry with a documented reason (`not_tier_A`,
+  `no_mutant_vs_wild_type_discrimination`, `capacity_reached`,
+  `overlaps_selected_window`, `transcript_offset_unresolved`).
+- **Junction audit honesty:** every junction-spanning 8–11-mer is scored
+  against every case allele; a new strong binder (≤ the shared 500 nM
+  threshold) created by a linker join is *flagged, never averaged away*. The
+  adjacent-swap minimisation is auditable via its history and must be
+  monotone (an accepted ordering can never worsen the flag count).
+
+**Design assumptions (declared, not validated):** AAY linkers assumed
+proteolytically permissive (processing of linker-embedded epitopes is not
+measured); signal peptide routes through the ER (tPA leader, UniProt P00750);
+UTRs and poly(A) are labelled placeholders; N1-methylpseudouridine and lipid
+formulation are not simulated; proteasomal processing and epitope transport
+are not simulated. The full register is in the artifact (`design_assumptions`,
+`uncertainty_register`).
+
+**Falsification:** for the design layer itself, falsification is binary and
+mechanical — a round-trip mismatch, an unflagged strong junction binder, an
+ambiguous selection ledger, or a non-reproducible hash would each falsify the
+stage's verification claims and are test-pinned. What *cannot* be claimed from
+this stage, ever: expression, folding, trafficking, immunogenicity or safety of
+a designed sequence. Those require wet-lab data we do not have and do not
+simulate.
+
 ## Compute determinism
 
 Full rerun-from-artifacts test: identical inputs → identical SHA-256s on all
@@ -135,6 +186,24 @@ Executed against the real HCC1395/SEQC2 case (branch state at this commit):
  differ only in protein position with identical substitution (annotation-
  version transcript-model drift, recorded, not hidden) and **0 contradictions
  of the substitution itself**; encoded in `test_real_case.py::…skcm…hgvsp…`.
+- **Stage 7 construct (design layer), executed on the real HCC1395 chain**
+  (artifact `68a7ceb9cfe4eb31`, hammer-rerun verified hash-identical; SKCM
+  refused mechanically — "chain stopped before present"): of 329 candidate
+  mutations, 80 Tier A → **15 epitopes selected** (documented cap; slider
+  defaults) with **314 ledgered exclusions (249 not_tier_A + 55
+  capacity_reached + 10 no_mutant_vs_wild_type_discrimination)**; **5/5 case
+  HLA alleles** covered (HLA-A\*29:02, B\*08:01, B\*45:01, C\*06:02, C\*07:01)
+  across **15 distinct genes**; protein **205 aa**, back-translated CDS
+  **618 nt**, GC **66.34%**, **0 internal stop codons**, round-trip translation
+  exact (`translation_matches_design = true`); **1,535 junction-spanning
+  (junction, peptide, allele) scoring rows** by MHCflurry 2.4.0 — **72 flagged
+  new strong binders** after one accepted adjacent swap, down from 73 at the
+  initial ordering (history: initial 73 → swapped positions 13/14 → 72 → "no
+  improving adjacent swap"); **0 restriction sites** from the documented
+  12-enzyme panel; 3 homopolymer runs of exactly 5 bases (within the
+  documented ≤5 threshold, listed in the artifact); codon table derived from
+  the pinned GENCODE v46 GRCh38 CDS (38,855,269 codons; stop TGA) with its
+  sha256 embedded in the artifact. FASTA export stamped in the header.
 - **Determinism:** six-stage CLI end-to-end test (`test_pipeline_e2e.py`) reruns
   the whole chain and requires hash-identical artifacts — passing on the real
   case, including a hash-identical report with its exportable Markdown.
