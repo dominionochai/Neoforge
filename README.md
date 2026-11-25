@@ -59,6 +59,22 @@ interface):
 # open http://localhost:8000
 ```
 
+The demo runner is pure Python (`scripts/run_demo.py`) — the `.sh` file is only a
+POSIX wrapper — so PowerShell works the same way:
+
+```powershell
+python scripts/run_demo.py --no-serve              # full pipeline + identically verified exports
+python scripts/run_demo.py                         # ... then serves http://127.0.0.1:8000
+python scripts/run_demo.py --refs-dir D:\neoforge-refs   # explicit reference-data location
+python scripts/run_demo.py --fetch-refs            # build the reference directory first (~900 MB, checksum-pinned)
+```
+
+Outside this repo's original Linux sandbox there is no default refs location:
+set `NEOFORGE_REFS` or pass `--refs-dir`. The `present`/`construct` stages need
+MHCflurry and its models (`pip install mhcflurry`,
+`mhcflurry-downloads fetch models_class1_presentation`); without them the demo
+preflight fails with that exact remediation instead of a mid-pipeline traceback.
+
 ## The four evidence layers
 
 | Layer | Content | Validation |
