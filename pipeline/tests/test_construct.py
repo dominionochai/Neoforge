@@ -62,8 +62,11 @@ def write_variants_fixture(store: ArtifactStore, keys: list[str]) -> None:
 def write_translate(store: ArtifactStore, rows: list[tuple[str, str, str, int]]) -> None:
     store.write(
         StageRun(stage="translate", case="mini"), "translate",
-        {"summary": {"derived_windows": len(rows), "transcripts_hit":
-                     len({r[1] for r in rows})},
+        {"summary": {"windows_derived": len(rows), "transcripts_hit":
+                     len({r[1] for r in rows}),
+                     "variants_with_peptides": len({r[0] for r in rows}),
+                     "variants_processed": len({r[0] for r in rows})},
+         "parameters": {"peptide_lengths": [8, 9, 10, 11]},
          "derived": {"columns": ["variant_key", "transcript_id", "gene_id", "mutant_offset"],
                      "variant_key": [r[0] for r in rows],
                      "transcript_id": [r[1] for r in rows],

@@ -166,7 +166,9 @@ def _construct_chain(tmp_path) -> ArtifactStore:
          "reference_peptide": "IMMTKEYLE", "reference_mhcflurry_affinity_nm": 900.0},
     ])
     pre = store.load("mini", "present")
-    pre["parameters"] = {"binder_nm": 500.0}
+    pre["parameters"] = {"binder_nm": 500.0, "predictor": "mhcflurry Class1PresentationPredictor",
+                         "mhcflurry_version": "fixture-1.0", "model_provenance": "fixture",
+                         "alleles": ALLELES}
     pre["non_claims"] = ["fixture non-claim"]
     store.write(StageRun(stage="present", case="mini"), "present", pre)
     run_prioritize(store, "mini")

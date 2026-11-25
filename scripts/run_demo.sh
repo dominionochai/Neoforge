@@ -49,7 +49,8 @@ stage() { # stage <case> <stage>
 # skcm_d9a3z1 runs through translate only: without HLA-resolved data the
 # present stage refuses, and downstream stages construct nothing on partial
 # chains — the refusal is the integrity mechanism, not a failure.
-for st in ingest variants translate present prioritize report construct; do
+# construct runs before report so the research summary can embed the design
+for st in ingest variants translate present prioritize construct report; do
     stage hcc1395 "$st"
 done
 for st in ingest variants translate; do

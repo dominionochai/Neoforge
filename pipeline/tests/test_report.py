@@ -116,3 +116,40 @@ def test_report_refuses_incomplete_chain(tmp_path: Path) -> None:
     store.write(StageRun(stage="ingest", case="mini"), "ingest", {"hla": {"resolved_alleles": SUPPORTED}})
     with pytest.raises(ArtifactChainError, match="requires completed stages"):
         run_report(store, "mini")
+
+
+# ---------------- construct mirrored into the report ----------------
+
+def test_report_embeds_construct_design(tmp_path: Path) -> None:
+    from tests.test_export_ui import _construct_chain
+    from tests.test_construct import ALLELES
+
+    store = _construct_chain(tmp_path)
+    out = run_report(store, "mini")
+    p = out["payload"]
+    con = p["construct"]
+    assert con is not None
+    assert con["artifact_id"] == store.read_manifest("mini")["stages"]["construct"]["artifact_id"]
+    assert con["stamp"].startswith("research design")
+    assert [e["variant_key"] for e in con["epitope_table"]] == ["chrT:100A>G", "chrT:300G>A"]
+    assert con["junction_rows_scored"] == len(
+        store.load("mini", "construct")["junction_audit"]["final_rows"])
+    assert con["junction_flagged_final"] <= con["junction_flagged_initial"]
+    assert "construct" in p["provenance_chain"]
+    md = p["research_report_md"]
+    assert "## Stage 7 construct" in md and con["stamp"] in md
+    assert con["epitope_table"][0]["peptide"] in md
+
+    rerun = run_report(store, "mini")
+    assert rerun["artifact_id"] == out["artifact_id"]
+
+
+def test_report_honestly_reports_missing_construct(tmp_path: Path) -> None:
+    store = full_chain(tmp_path, "work-report-nocon")
+    out = run_report(store, "mini")
+    p = out["payload"]
+    assert p["construct"] is None
+    assert "No construct design artifact exists" in p["research_report_md"]
+    assert "construct" not in p["provenance_chain"]
+    rerun = run_report(store, "mini")
+    assert rerun["artifact_id"] == out["artifact_id"]

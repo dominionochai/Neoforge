@@ -60,7 +60,13 @@ def run_report(store, case: str, *, shortlist_size: int = 10) -> dict:
 
     snv_counters = ing["vcf"]["somatic_snv_vcf"]["counters"]
     tesla_ref = _tesla_reference(store)
+    construct_ref = _construct_reference(store, case)
     ledger = _ledger(ing, var, tra, pre, tesla_ref)
+    provenance = {s: {"artifact_id": manifest["stages"][s]["artifact_id"],
+                      "sha256": manifest["stages"][s]["sha256"]} for s in UPSTREAM}
+    if construct_ref is not None:
+        provenance["construct"] = {"artifact_id": construct_ref["artifact_id"],
+                                   "sha256": construct_ref["sha256"]}
 
     payload = {
         "parameters": {"shortlist_size": shortlist_size, "stages_read": list(UPSTREAM)},
@@ -72,9 +78,7 @@ def run_report(store, case: str, *, shortlist_size: int = 10) -> dict:
             "is pending (TESLA, when run, audits the ranking rule at cohort level only)",
         ],
         "case": ing["case"],
-        "provenance_chain": {s: {"artifact_id": manifest["stages"][s]["artifact_id"],
-                                 "sha256": manifest["stages"][s]["sha256"]}
-                             for s in UPSTREAM},
+        "provenance_chain": provenance,
         "inputs": ing["inputs"],
         "hla": {"resolved_alleles": ing["hla"]["resolved_alleles"],
                 "cell_line": ing["hla"]["cell_line"],
@@ -91,15 +95,19 @@ def run_report(store, case: str, *, shortlist_size: int = 10) -> dict:
         "tier_counts": pri["tier_counts"],
         "prioritisation_rule": pri["parameters"],
         "shortlist": shortlist,
+        "construct": construct_ref,
         "uncertainty_register": _uncertainty(ing, var, pri, tesla_ref),
         "what_science_would_confirm": WHAT_SCIENCE_WOULD_CONFIRM,
         "research_report_md": None,
     }
     payload["research_report_md"] = _render_markdown(payload)
 
+    report_inputs = {s: manifest["stages"][s]["artifact_id"] for s in UPSTREAM}
+    if construct_ref is not None:
+        report_inputs["construct"] = construct_ref["artifact_id"]
     artifact_id, digest = store.write(
         StageRun(stage="report", case=case,
-                 inputs={s: manifest["stages"][s]["artifact_id"] for s in UPSTREAM},
+                 inputs=report_inputs,
                  parameters=payload["parameters"]),
         "report", payload)
     return {"artifact_id": artifact_id, "sha256": digest, "payload": payload}
@@ -184,6 +192,42 @@ def _uncertainty(ing: dict, var: dict, pri: dict, tesla_ref: dict | None) -> lis
     return findings
 
 
+def _construct_reference(store, case: str) -> dict | None:
+    """Mirror the construct design into the report when its artifact exists.
+
+    Read-only and optional: a case whose chain stops before L3 (or with no run
+    construct stage) simply reports the absence instead of inventing a design."""
+    rec = store.read_manifest(case)["stages"].get("construct")
+    if rec is None:
+        return None
+    c = store.load(case, "construct")
+    cs, stats, audit = c["case_summary"], c["nucleotide_stats"], c["junction_audit"]
+    return {
+        "artifact_id": rec["artifact_id"],
+        "sha256": rec["sha256"],
+        "stamp": c["stamp"],
+        "fasta_file": f"construct_cds.{rec['artifact_id']}.fasta",
+        "tier_a_candidates": cs["tier_a_candidates"],
+        "epitopes_selected": cs["epitopes_selected"],
+        "epitopes_excluded_ledgered": cs["epitopes_excluded_ledgered"],
+        "alleles_covered": cs["alleles_covered"],
+        "case_alleles": cs["case_alleles"],
+        "genes_covered": cs["genes_covered"],
+        "protein_length_aa": stats["protein_length_aa"],
+        "cds_length_nt": stats["cds_length_nt"],
+        "gc_percent": stats["gc_percent"],
+        "junction_rows_scored": len(audit["final_rows"]),
+        "junction_flagged_final": audit["final_flagged_junction_peptides"],
+        "junction_flagged_initial": audit["history"][0]["flagged_junction_peptides"],
+        "optimiser_history": audit["history"],
+        "epitope_table": [{"variant_key": e["variant_key"], "peptide": e["peptide"],
+                           "allele": e["allele"], "gene_id": e["gene_id"],
+                           "mutant_affinity_nm": e["mutant_affinity_nm"],
+                           "reference_affinity_nm": e["reference_affinity_nm"]}
+                          for e in c["selection_ledger"]["included"]],
+    }
+
+
 def _tesla_reference(store) -> dict | None:
     man = store.read_manifest("tesla")
     rec = man["stages"].get("tesla_eval")
@@ -244,6 +288,46 @@ def _render_markdown(payload: dict) -> str:
     lines += [
         "",
         "All predicted affinities are MHCflurry predictions (see provenance), not measurements.",
+        "",
+        "## Stage 7 construct \u2014 in-silico polyepitope research design",
+        "",
+    ]
+    con = payload["construct"]
+    if con is None:
+        lines += [
+            "No construct design artifact exists for this case: the construct stage refuses",
+            "mechanically without the full L1\u2013L3 chain and a resolved HLA genotype, and no",
+            "design must be invented in its absence.",
+        ]
+    else:
+        lines += [
+            f"**{con['stamp']}**",
+            "",
+            f"Selected {con['epitopes_selected']} epitopes from a {con['tier_a_candidates']}-mutation "
+            f"tier-A pool ({con['epitopes_excluded_ledgered']} ledgered exclusions); HLA alleles "
+            f"covered {len(con['alleles_covered'])}/{len(con['case_alleles'])}; "
+            f"{len(con['genes_covered'])} genes.",
+            f"Design protein {con['protein_length_aa']} aa; back-translated CDS "
+            f"{con['cds_length_nt']} nt (GC {con['gc_percent']:.2f}%). FASTA export: "
+            f"`{con['fasta_file']}`.",
+            f"Junction audit: {con['junction_rows_scored']} junction-spanning prediction rows "
+            f"(MHCflurry); {con['junction_flagged_final']} newly flagged strong binders remain "
+            f"after the bounded minimisation (initial ordering: "
+            f"{con['junction_flagged_initial']}).",
+            "",
+            "Variant | Peptide | Allele | Gene | Pred. affinity (nM) | Ref. affinity (nM)",
+            "--- | --- | --- | --- | --- | ---",
+        ]
+        lines += [f"{e['variant_key']} | {e['peptide']} | {e['allele']} | {e['gene_id']} | "
+                  f"{e['mutant_affinity_nm']:.1f} | {e['reference_affinity_nm']:.1f}"
+                  for e in con["epitope_table"]]
+        lines += [
+            "",
+            "This is a research design for qualified-reviewer discussion. It is not a "
+            "manufacturable or validated sequence, and nothing here is claimed about "
+            "expression, folding, trafficking or immunogenicity.",
+        ]
+    lines += [
         "",
         "## Uncertainty register",
         "",
