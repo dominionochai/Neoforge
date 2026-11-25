@@ -13,7 +13,7 @@ from neoforge.artifacts import ArtifactStore, StageRun
 from neoforge.errors import ArtifactChainError
 from neoforge.export_ui import export_case, export_tesla
 from neoforge.stages.report import run_report
-from tests.test_report import full_chain
+from tests.test_report import SUPPORTED, full_chain
 
 
 def _augment_ingest_with_snv_table(store: ArtifactStore) -> None:
@@ -113,3 +113,93 @@ def test_export_tesla_projects_validated_rows(tmp_path) -> None:
     assert out["validated_predictions"]["columns_dropped"] == ["unexported_col"]
     assert out["validated_pmhc_ids"] == ["HLA-A*02:01_AAALENLKT", "HLA-A*02:01_GGGLENLKT"]
     assert out["source"].startswith("tesla.tesla_eval.")
+
+
+# ---------------- construct projection ----------------
+
+def _ingest_for_construct_export(store: ArtifactStore) -> None:
+    store.write(
+        StageRun(stage="ingest", case="mini"), "ingest",
+        {"case": {"case_id": "mini", "display_name": "Mini", "genome_build": "GRCh38",
+                  "pairing": {"tumour": "miniT", "normal": "miniN"}},
+         "checks": [], "inputs": [{"name": "demo", "path": "demo.vcf.gz",
+                                   "sha256": "0" * 64, "role": "demo"}],
+         "vcf": {"somatic_snv_vcf": {"counters": {"records": 3, "with_tvaf": 3, "with_depth": 3}},
+                 "somatic_indel_vcf": {"counters": {"records": 0}}},
+         "variant_tables": {"somatic_snv_vcf": {"chrom": ["chrT"] * 3, "pos": [100, 200, 300],
+                                                "ref": ["A"] * 3, "alt": ["G"] * 3,
+                                                "tvaf": [0.5] * 3, "nvaf": [0.0] * 3,
+                                                "tumor_depth": [100] * 3}},
+         "hla": {"resolved_alleles": SUPPORTED, "cell_line": "MINI",
+                 "source": {"path": "hla.csv", "sha256": "0" * 64}},
+         "expression": {"tpm_by_gene": {"ENSG1": 5.0, "ENSG2": 5.0, "ENSG3": 5.0},
+                        "source_description": "fixture measured TPM"}})
+
+
+def _construct_chain(tmp_path) -> ArtifactStore:
+    from tests.test_construct import (ALLELES, GENES_1_3, fixture_factory, write_present,
+                                      write_translate, write_variants_fixture)
+    from neoforge.stages.construct import run_construct
+    from neoforge.stages.prioritize import run_prioritize
+
+    store = ArtifactStore(tmp_path / "work-ui-construct")
+    _ingest_for_construct_export(store)
+    keys = keys3 = ["chrT:100A>G", "chrT:200C>T", "chrT:300G>A"]
+    write_variants_fixture(store, keys)
+    write_translate(store, [(k, f"ENST{i + 1}", g, 40 * i)
+                            for i, (k, g) in enumerate(zip(keys, GENES_1_3))])
+    write_present(store, [
+        {"variant_key": keys[0], "transcript_id": "ENST1", "gene_id": GENES_1_3[0],
+         "peptide_length": 9, "window_start": 0, "allele": ALLELES[0],
+         "peptide": "SYFKPEPTI", "mhcflurry_affinity_nm": 120.0,
+         "mhcflurry_presentation_score": 0.5, "mhcflurry_presentation_percentile": 1.0,
+         "reference_peptide": "SYFKPEPTE", "reference_mhcflurry_affinity_nm": 800.0},
+        {"variant_key": keys[1], "transcript_id": "ENST2", "gene_id": GENES_1_3[1],
+         "peptide_length": 9, "window_start": 0, "allele": ALLELES[0],
+         "peptide": "TEPTQVAAA", "mhcflurry_affinity_nm": 80.0,
+         "mhcflurry_presentation_score": 0.5, "mhcflurry_presentation_percentile": 1.0,
+         "reference_peptide": "TEPTQVAAE", "reference_mhcflurry_affinity_nm": 90.0},
+        {"variant_key": keys[2], "transcript_id": "ENST3", "gene_id": GENES_1_3[2],
+         "peptide_length": 9, "window_start": 0, "allele": ALLELES[1],
+         "peptide": "IMMTKEYLL", "mhcflurry_affinity_nm": 200.0,
+         "mhcflurry_presentation_score": 0.5, "mhcflurry_presentation_percentile": 1.0,
+         "reference_peptide": "IMMTKEYLE", "reference_mhcflurry_affinity_nm": 900.0},
+    ])
+    pre = store.load("mini", "present")
+    pre["parameters"] = {"binder_nm": 500.0}
+    pre["non_claims"] = ["fixture non-claim"]
+    store.write(StageRun(stage="present", case="mini"), "present", pre)
+    run_prioritize(store, "mini")
+    run_construct(store, "mini", junction_predictor_factory=fixture_factory)
+    return store
+
+
+def test_export_projects_construct_block(tmp_path) -> None:
+    store = _construct_chain(tmp_path)
+    cases_dir = tmp_path / "cases" / "mini"
+    cases_dir.mkdir(parents=True)
+    (cases_dir / "case.json").write_text('{"case_id": "mini", "display_name": "Mini"}')
+
+    out = export_case(store, "mini", tmp_path / "cases")
+    con = out["construct"]
+    rec = out["pipeline_stage_records"]["construct"]
+    assert set(out["pipeline_stage_records"]) >= {"ingest", "variants", "translate",
+                                                  "present", "prioritize", "construct"}
+    assert rec["artifact_id"] == store.read_manifest("mini")["stages"]["construct"]["artifact_id"]
+    assert con["source"] == f"construct.{rec['artifact_id']}.{rec['sha256']}"
+    assert con["evidence_kind"] == "in_silico_design"
+    assert con["stamp"].startswith("research design")
+    assert [e["variant_key"] for e in con["selection_ledger_included"]] == \
+        ["chrT:100A>G", "chrT:300G>A"]
+    assert con["exclusion_reason_counts"] == {"no_mutant_vs_wild_type_discrimination": 1}
+    assert con["junction_audit"]["final_rows"]
+    assert con["sequence_checks"]["translation_matches_design"] is True
+    assert con["nucleotide_map"][0]["kind"] == "placeholder"
+    assert con["fasta_file"] == f"construct_cds.{rec['artifact_id']}.fasta"
+    assert all("reason" in e for e in con["selection_ledger_excluded"])
+
+
+def test_export_construct_is_none_until_construct_runs(mini_export) -> None:
+    _store, payload = mini_export
+    assert payload["construct"] is None
+    assert "construct" not in payload["pipeline_stage_records"]

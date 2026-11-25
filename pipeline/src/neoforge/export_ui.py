@@ -84,6 +84,36 @@ def _project_translate(tra: dict | None, record: dict, keep_keys: set[str] | Non
     }
 
 
+def _project_construct(con: dict | None, record: dict | None) -> dict | None:
+    if con is None:
+        return None
+    i, e = con["selection_ledger"]["included"], con["selection_ledger"]["excluded"]
+    return {
+        "stage": "construct",
+        "source": (f"construct.{record['artifact_id']}.{record['sha256']}"
+                   if record else "construct artifact"),
+        "layer": con["layer"],
+        "evidence_kind": con["evidence_kind"],
+        "stamp": con["stamp"],
+        "non_claims": con["non_claims"],
+        "inputs": con["inputs"],
+        "parameters": con["parameters"],
+        "design_assumptions": con["design_assumptions"],
+        "uncertainty_register": con["uncertainty_register"],
+        "case_summary": con["case_summary"],
+        "selection_ledger_included": i,
+        "selection_ledger_excluded": e,
+        "exclusion_reason_counts": {r: sum(1 for x in e if x["reason"] == r)
+                                    for r in sorted({x["reason"] for x in e})},
+        "junction_audit": con["junction_audit"],
+        "reverse_translation": con["reverse_translation"],
+        "nucleotide_map": con["nucleotide_map"],
+        "sequence_checks": con["sequence_checks"],
+        "nucleotide_stats": con["nucleotide_stats"],
+        "fasta_file": f"construct_cds.{record['artifact_id']}.fasta" if record else None,
+    }
+
+
 def export_case(store: ArtifactStore, case: str, cases_dir: Path) -> dict:
     ing, ing_rec = _load(store, case, "ingest")
     if ing is None:
@@ -93,6 +123,7 @@ def export_case(store: ArtifactStore, case: str, cases_dir: Path) -> dict:
     pre, pre_rec = _load(store, case, "present")
     pri, pri_rec = _load(store, case, "prioritize")
     rep, rep_rec = _load(store, case, "report")
+    con, con_rec = _load(store, case, "construct")
 
     bundle = json.loads((cases_dir / case / "case.json").read_text())
     shortlist_keys = set(_shortlist_keys(rep, pri))
@@ -117,9 +148,11 @@ def export_case(store: ArtifactStore, case: str, cases_dir: Path) -> dict:
         "exported_by": "neoforge.export_ui (no scientific computation; projections of hashed artifacts)",
         "pipeline_stage_records": {s: r for s, r in (("ingest", ing_rec), ("variants", var_rec),
                                                      ("translate", tra_rec), ("present", pre_rec),
-                                                     ("prioritize", pri_rec), ("report", rep_rec)) if r},
+                                                     ("prioritize", pri_rec), ("report", rep_rec),
+                                                     ("construct", con_rec)) if r},
         "case_bundle": bundle,
         "report": rep,
+        "construct": _project_construct(con, con_rec),
         "prioritize": ({"stage": "prioritize",
                         "source": f"{pri_rec['stage']}.{pri_rec['artifact_id']}.{pri_rec['sha256']}",
                         "tier_counts": pri["tier_counts"],

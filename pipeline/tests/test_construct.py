@@ -51,7 +51,9 @@ def write_ingest(store: ArtifactStore, *, alleles: list[str] | None = ALLELES,
 def write_variants_fixture(store: ArtifactStore, keys: list[str]) -> None:
     store.write(
         StageRun(stage="variants", case="mini"), "variants",
-        {"selected": {"columns": ["variant_key", "tvaf", "tumor_depth"],
+        {"selection": {"ingested_snv_records": len(keys), "selected": len(keys),
+                       "excluded": 0, "exclusion_reasons": {}, "indels_seen": 0},
+         "selected": {"columns": ["variant_key", "tvaf", "tumor_depth"],
                       "variant_key": keys,
                       "tvaf": [0.5] * len(keys),
                       "tumor_depth": [100] * len(keys)}})
@@ -60,7 +62,9 @@ def write_variants_fixture(store: ArtifactStore, keys: list[str]) -> None:
 def write_translate(store: ArtifactStore, rows: list[tuple[str, str, str, int]]) -> None:
     store.write(
         StageRun(stage="translate", case="mini"), "translate",
-        {"derived": {"columns": ["variant_key", "transcript_id", "gene_id", "mutant_offset"],
+        {"summary": {"derived_windows": len(rows), "transcripts_hit":
+                     len({r[1] for r in rows})},
+         "derived": {"columns": ["variant_key", "transcript_id", "gene_id", "mutant_offset"],
                      "variant_key": [r[0] for r in rows],
                      "transcript_id": [r[1] for r in rows],
                      "gene_id": [r[2] for r in rows],
