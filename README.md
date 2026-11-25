@@ -15,14 +15,19 @@ with a transparent, evidence-backed rule set that judges can inspect.
   only (executed: TTIF 0.541 vs random 0.200, AUPRC 0.153 vs prevalence 0.061;
   see `docs/EVALUATION_PLAN.md`).
 - Missing evidence is shown as missing. Nothing is imputed or invented.
+- The construct stage produces a **research-only in-silico design**, stamped
+  "research design, not a manufacturable or validated sequence" — not a
+  vaccine, not a validated sequence, no simulated mRNA chemistry.
 
 ## Architecture
 
 - `pipeline/` — `neoforge` Python package; stages `ingest → variants →
-  translate → present → prioritize → report`; immutable content-hashed JSON
-  artifacts with full provenance (`docs/SCIENTIFIC_DESIGN.md`). Includes
-  `neoforge/maf.py` (GDC masked-MAF ingest with a single-patient barcode gate)
-  and `neoforge/evaluation/tesla.py` (L4 benchmark harness).
+  translate → present → prioritize → report`, plus the stage-7 `construct`
+  design layer (research-only in-silico polyepitope design: ledgered selection,
+  MHC-I linkers, junction audit, pinned-codon back-translation); immutable
+  content-hashed JSON artifacts with full provenance (`docs/SCIENTIFIC_DESIGN.md`).
+  Includes `neoforge/maf.py` (GDC masked-MAF ingest with a single-patient
+  barcode gate) and `neoforge/evaluation/tesla.py` (L4 benchmark harness).
 - `frontend/` — zero-dependency static Research Explorer + Analysis Workbench
   (vanilla JS, hand-rolled SVG). It renders **only** projections of the hashed
   pipeline artifacts exported by `python -m neoforge.export_ui`; it computes no
@@ -63,10 +68,11 @@ interface):
 | L3 predicted presentation | MHCflurry scores | correct-use tests; predictor cited, not ours |
 | L4 ranking-rule audit | TESLA experimental labels | executed — cohort level, never case-level |
 
-`hcc1395` runs the full chain (L1+L2+L3). `skcm_d9a3z1` demonstrates the honest
-boundary: no same-patient HLA genotype exists in the open GDC tier, so the
-chain mechanically stops after L2 and the interface says so instead of
-inventing predictions.
+`hcc1395` runs the full chain (L1+L2+L3) plus the stage-7 construct design.
+`skcm_d9a3z1` demonstrates the honest boundary: no same-patient HLA genotype
+exists in the open GDC tier, so the chain mechanically stops after L2 — and
+the construct stage refuses mechanically on any chain that stops before L3 —
+and the interface says so instead of inventing predictions.
 
 See `docs/EVALUATION_PLAN.md` for metrics, baselines and falsification
 criteria, and `frontend/README.md` for the interface's data contract.

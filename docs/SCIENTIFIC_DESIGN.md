@@ -37,6 +37,7 @@ Rules enforced in code and UI:
 
 ```
 ingest → variants → translate → present → prioritize → report
+construct = research-only design layer over the L1–L3 chain (no science added)
 ```
 
 Each stage is a pure function from artifacts to artifacts. Every artifact is
@@ -61,6 +62,16 @@ immutable, content-hashed (SHA-256), and stored with a provenance record
 - **prioritize** — transparent rule-based tiers (see §4). No hidden weighted sum.
 - **report** — the research summary: tiered candidates, evidence ledger,
   uncertainty register, provenance, and "what science would confirm/refute this".
+- **construct** — a **design layer, not a prediction layer**: builds a
+  research-only in-silico polyepitope design from tier-A candidates (ledgered
+  selection with allele-coverage and gene-diversity preferences, MHC-I linker
+  joins, a junction audit that flags newly created strong binders, and
+  back-translation with a pinned codon-usage table). It adds no biological
+  claim; its artifact and FASTA are stamped "research design, not a
+  manufacturable or validated sequence", and it mechanically refuses without
+  the full L1–L3 chain, a resolved HLA genotype, or a surviving tier-A
+  candidate. What a design layer can and cannot be evaluated on is specified
+  in the construct section of `docs/EVALUATION_PLAN.md`.
 
 ## 4. Prioritisation: explainable, TESLA-grounded, no invented weights
 

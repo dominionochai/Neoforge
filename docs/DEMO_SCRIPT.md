@@ -51,8 +51,33 @@ Quick non-claims banner, then a pipeline map that doubles as dashboard nav.
 - Exportable Markdown research summary: candidates, evidence, limitations,
   provenance, and recommended next investigations for qualified researchers.
 
+## Step 9 - Construct (design layer)
+- A research-only in-silico polyepitope design generated from the tier-A
+  shortlist: a proportional construct map (signal peptide, epitopes, AAY
+  linkers, flagged junctions), the full selection ledger (included epitopes
+  and every exclusion with its documented reason), the junction audit (which
+  8-11-mers spanning the joins create newly flagged strong binders across
+  case alleles, and how ordering improved), and the back-transcription stats
+  (codon table hash, GC content, homopolymer and restriction-site checks).
+- Question answered: **what would the construct look like, reductively - and
+  what does the software refuse to claim about it?** The artifact, FASTA and
+  screen are all stamped "research design, not a manufacturable or validated
+  sequence".
+
+## Step 10 - Rosie pathway mapping (narrative close)
+- The reported dog-vaccine case mapped, step by reported step, to NEOFORGE
+  stages - each row stating what the software does, what it does not do, and
+  where human expertise and the laboratory take over.
+- Mentions the honest gaps: human-HLA vs canine-DLA (no canine predictor is
+  integrated, and faithful canine cases are refused rather than imputed),
+  protein structure modelling deferred, and everything downstream of design
+  (review, manufacture, administration) is outside the software by rule.
+
 ## What is deliberately NOT in the demo
 - Any treatment or vaccine claim; any immunogenicity prediction; any
   cross-patient data blending. TESLA is shown only as audit evidence for the
   ranking rule at cohort level (L4), never as validation of the case; the
   benchmark page states its files, licensing and falsification clause verbatim.
+- No claim that the designed construct is manufacturable, expressible,
+  trafficked or immunogenic; the construct stage is a design layer whose
+  outputs cannot be elevated to clinical statements by any toggle or export.
