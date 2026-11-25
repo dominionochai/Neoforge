@@ -86,7 +86,8 @@ def read_gdc_maf(path: str | Path) -> dict:
                 pos = int(cell(fields, "Start_Position"))
                 t_depth = int(cell(fields, "t_depth")) if cell(fields, "t_depth") else None
                 t_alt = int(cell(fields, "t_alt_count")) if cell(fields, "t_alt_count") else None
-                n_depth = int(cell(fields, "n_depth")) if cell(fields, "n_depth") else None
+                if cell(fields, "n_depth"):
+                    int(cell(fields, "n_depth"))
             except ValueError as exc:
                 raise ValueError(f"{path}: line {line_no} non-integer coordinate or depth ({exc})") from exc
             tvaf = t_alt / t_depth if (t_depth and t_alt is not None) else None

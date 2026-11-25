@@ -144,7 +144,7 @@ def _construct_chain(tmp_path) -> ArtifactStore:
 
     store = ArtifactStore(tmp_path / "work-ui-construct")
     _ingest_for_construct_export(store)
-    keys = keys3 = ["chrT:100A>G", "chrT:200C>T", "chrT:300G>A"]
+    keys = ["chrT:100A>G", "chrT:200C>T", "chrT:300G>A"]
     write_variants_fixture(store, keys)
     write_translate(store, [(k, f"ENST{i + 1}", g, 40 * i)
                             for i, (k, g) in enumerate(zip(keys, GENES_1_3))])
@@ -217,7 +217,6 @@ def test_export_fasta_projection_matches_store_copy(tmp_path) -> None:
     out_dir = tmp_path / "ui"
     out_dir.mkdir()
 
-    from neoforge.export_ui import main as export_main
     import neoforge.export_ui as ex
     payload = ex.export_case(store, "mini", tmp_path / "cases")
     copied = ex._copy_construct_fastas(store, "mini", out_dir, payload)

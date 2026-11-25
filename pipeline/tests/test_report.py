@@ -122,7 +122,6 @@ def test_report_refuses_incomplete_chain(tmp_path: Path) -> None:
 
 def test_report_embeds_construct_design(tmp_path: Path) -> None:
     from tests.test_export_ui import _construct_chain
-    from tests.test_construct import ALLELES
 
     store = _construct_chain(tmp_path)
     out = run_report(store, "mini")

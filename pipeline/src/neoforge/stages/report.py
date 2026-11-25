@@ -273,7 +273,7 @@ def _render_markdown(payload: dict) -> str:
         f"provided; tumour VAF >= {payload['prioritisation_rule']['min_tumour_vaf']} when "
         "measured. Ordering: tier, then ascending best predicted affinity.",
         "",
-        f"Tier counts: " + ", ".join(f"Tier {t}: {n}" for t, n in sorted(tiers.items())),
+        "Tier counts: " + ", ".join(f"Tier {t}: {n}" for t, n in sorted(tiers.items())),
         "",
         "Variant | Tier | Best peptide | Allele | Pred. affinity (nM) | Ref. affinity "
         "(nM) | Tumour VAF | Flags",

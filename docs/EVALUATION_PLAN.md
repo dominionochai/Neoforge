@@ -106,8 +106,10 @@ that was never made):
 - **Junction audit honesty:** every junction-spanning 8–11-mer is scored
   against every case allele; a new strong binder (≤ the shared 500 nM
   threshold) created by a linker join is *flagged, never averaged away*. The
-  adjacent-swap minimisation is auditable via its history and must be
-  monotone (an accepted ordering can never worsen the flag count).
+  order-minimisation (adjacent swaps plus single-epitope reinsertions,
+  bounded to 2× population accepted moves) is auditable via its history and
+  must be monotone (an accepted ordering can never worsen the flag count);
+  it is audit-grade, and residual flags stay flagged.
 
 **Design assumptions (declared, not validated):** AAY linkers assumed
 proteolytically permissive (processing of linker-embedded epitopes is not
@@ -187,7 +189,7 @@ Executed against the real HCC1395/SEQC2 case (branch state at this commit):
  version transcript-model drift, recorded, not hidden) and **0 contradictions
  of the substitution itself**; encoded in `test_real_case.py::…skcm…hgvsp…`.
 - **Stage 7 construct (design layer), executed on the real HCC1395 chain**
-  (artifact `68a7ceb9cfe4eb31`, hammer-rerun verified hash-identical; SKCM
+  (artifact `7ec0e5f6853830b8`, hammer-rerun verified hash-identical; SKCM
   refused mechanically — "chain stopped before present"): of 329 candidate
   mutations, 80 Tier A → **15 epitopes selected** (documented cap; slider
   defaults) with **314 ledgered exclusions (249 not_tier_A + 55
@@ -195,15 +197,18 @@ Executed against the real HCC1395/SEQC2 case (branch state at this commit):
   HLA alleles** covered (HLA-A\*29:02, B\*08:01, B\*45:01, C\*06:02, C\*07:01)
   across **15 distinct genes**; protein **205 aa**, back-translated CDS
   **618 nt**, GC **66.34%**, **0 internal stop codons**, round-trip translation
-  exact (`translation_matches_design = true`); **1,535 junction-spanning
-  (junction, peptide, allele) scoring rows** by MHCflurry 2.4.0 — **72 flagged
-  new strong binders** after one accepted adjacent swap, down from 73 at the
-  initial ordering (history: initial 73 → swapped positions 13/14 → 72 → "no
-  improving adjacent swap"); **0 restriction sites** from the documented
-  12-enzyme panel; 3 homopolymer runs of exactly 5 bases (within the
-  documented ≤5 threshold, listed in the artifact); codon table derived from
-  the pinned GENCODE v46 GRCh38 CDS (38,855,269 codons; stop TGA) with its
-  sha256 embedded in the artifact. FASTA export stamped in the header.
+  exact (`translation_matches_design = true`); **1,540 junction-spanning
+  (junction, peptide, allele) scoring rows** by MHCflurry 2.4.0 — **65 flagged
+  new strong binders** remain, down from 73 at the initial ordering
+  (history: initial 73 → moved epitope 3→14 → 68 → moved epitope 10→0 → 65 →
+  "no improving swap or reinsertion"; the minimiser considers adjacent swaps
+  plus single-epitope reinsertions, bounded to 2× population accepted moves,
+  and is audit-grade: residual flagged junctions are recorded in the
+  artifact, not resolved or averaged away); **0 restriction sites** from the
+  documented 12-enzyme panel; 3 homopolymer runs of exactly 5 bases (within
+  the documented ≤5 threshold, listed in the artifact); codon table derived
+  from the pinned GENCODE v46 GRCh38 CDS (38,855,269 codons; stop TGA) with
+  its sha256 embedded in the artifact. FASTA export stamped in the header.
 - **Determinism:** CLI end-to-end test (`test_pipeline_e2e.py`) reruns
   the whole chain and requires hash-identical artifacts — passing on the real
   case, including a hash-identical report with its exportable Markdown.

@@ -12,7 +12,6 @@ identical conditions so prioritisation can apply the documented
 change-vs-reference rule instead of an invented composite score."""
 from __future__ import annotations
 
-import time
 from typing import Callable
 
 from neoforge.artifacts import ArtifactStore, StageRun
@@ -61,7 +60,6 @@ def run_present(store: ArtifactStore, case: str,
         "reference_peptide", "reference_mhcflurry_affinity_nm",
     ]}
 
-    t0 = time.time()
     for base in range(0, len(rows), BATCH):
         chunk = rows[base:base + BATCH]
         specs = [(r, allele) for r in chunk for allele in alleles]
