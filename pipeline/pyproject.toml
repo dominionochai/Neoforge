@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "neoforge-pipeline"
+version = "0.1.0"
+description = "NEOFORGE computational neoantigen research pipeline: evidence-disciplined, artifact-based, reproducible"
+requires-python = ">=3.11"
+dependencies = [
+    "requests>=2.31",
+    "pandas>=2.0",
+    "openpyxl>=3.1",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+presentation = ["mhcflurry>=2.4"]
+
+[project.scripts]
+neoforge = "neoforge.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "slow: long-running tests (real genome data, network)",
+]
