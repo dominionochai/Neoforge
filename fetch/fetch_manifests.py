@@ -21,7 +21,10 @@ def sha256_file(path: Path) -> str:
 def fetch(rows: list[dict], out_dir: Path, allow_unpinned: bool) -> int:
     failures = 0
     for row in rows:
-        name, url, sha = row["name"], row["url"], row["sha256"]
+        name, url, sha = row["name"], row["url"].split()[0], row["sha256"]
+        if url.startswith("(") or not url.startswith("http"):
+            print(f"derived {name} (built locally by a fetch/ script; not downloadable)")
+            continue
         target = out_dir / name
         target.parent.mkdir(parents=True, exist_ok=True)
         if target.exists() and sha != "pinned_at_fetch" and sha256_file(target) == sha:

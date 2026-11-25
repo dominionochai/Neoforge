@@ -57,7 +57,7 @@ def resolve_refs(explicit: str | None) -> Path:
 
 def preflight_install() -> None:
     probe = subprocess.run([sys.executable, "-c", "import neoforge"],
-                           capture_output=True)
+                           check=False, capture_output=True)
     if probe.returncode != 0:
         print("run_demo: installing the pipeline (pip install -e ./pipeline)...")
         subprocess.run([sys.executable, "-m", "pip", "install", "-e", str(ROOT / "pipeline")],
@@ -71,7 +71,8 @@ def preflight_mhcflurry() -> None:
         "from mhcflurry import Class1PresentationPredictor\n"
         "Class1PresentationPredictor.load().predict(['SYFPEITHI'], ['HLA-A*02:01'])\n"
     )
-    got = subprocess.run([sys.executable, "-c", probe], capture_output=True, text=True)
+    got = subprocess.run([sys.executable, "-c", probe], check=False,
+                         capture_output=True, text=True)
     if got.returncode != 0:
         tail = (got.stderr or got.stdout).strip().splitlines()[-4:]
         print("\n".join(f"    {line}" for line in tail), file=sys.stderr)
@@ -85,7 +86,7 @@ def run_stage(refs: Path, case: str, stage: str) -> None:
     cmd = [sys.executable, "-m", "neoforge.cli", stage, "--case", case,
            "--work-dir", str(ROOT / "work"), "--cases-dir", str(ROOT / "cases"),
            "--refs-dir", str(refs)]
-    got = subprocess.run(cmd)
+    got = subprocess.run(cmd, check=False)
     if got.returncode != 0:
         die(f"stage '{stage}' failed for case '{case}' (exit {got.returncode})")
 
@@ -99,7 +100,11 @@ def load_projection(path: Path):
         if isinstance(obj, list):
             return [strip_volatile(v) for v in obj]
         return obj
-    raw = gzip.open(path).read() if path.name.endswith(".json.gz") else path.read_bytes()
+    if path.name.endswith(".json.gz"):
+        with gzip.open(path, "rb") as fh:
+            raw = fh.read()
+    else:
+        raw = path.read_bytes()
     return strip_volatile(json.loads(raw))
 
 
@@ -109,7 +114,8 @@ def export_and_verify() -> list[str]:
         out = Path(tmp) / "data"
         got = subprocess.run([sys.executable, "-m", "neoforge.export_ui",
                               "--work-dir", str(ROOT / "work"),
-                              "--cases-dir", str(ROOT / "cases"), "--out", str(out)])
+                              "--cases-dir", str(ROOT / "cases"), "--out", str(out)],
+                             check=False)
         if got.returncode != 0:
             die("export_ui failed")
         produced = sorted(out.iterdir())
@@ -131,7 +137,7 @@ def export_and_verify() -> list[str]:
 def serve(port: int) -> None:
     print(f"==> serving {ROOT / 'frontend'} at http://127.0.0.1:{port} (Ctrl-C to stop)")
     import functools
-    from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
+    from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
     handler = functools.partial(SimpleHTTPRequestHandler, directory=str(ROOT / "frontend"))
     ThreadingHTTPServer(("127.0.0.1", port), handler).serve_forever()
@@ -150,7 +156,7 @@ def main() -> int:
     wanted = ["gencode/gencode.v46.annotation.gtf.gz",
               "gencode/GRCh38.primary_assembly.genome.fa.gz",
               "hla/cell-line-class1-mhc-alleles.csv",
-              "mhci2018_mmc4.xlsx", "tesla/mmc4.xlsx"]
+              "tesla/mmc4.xlsx"]
     missing = [w for w in wanted if not (refs / w).exists()]
     if missing and not args.fetch_refs:
         die("reference data not found in "
@@ -162,7 +168,7 @@ def main() -> int:
     if missing:
         print(f"==> fetching reference data into {refs} ({len(missing)} file(s) missing)")
         got = subprocess.run([sys.executable, str(ROOT / "fetch" / "fetch_manifests.py"),
-                              "--out-dir", str(refs)])
+                              "--out-dir", str(refs)], check=False)
         if got.returncode != 0:
             die("reference fetch failed (checksums are pinned in fetch/manifests.csv)")
 
@@ -179,7 +185,8 @@ def main() -> int:
     got = subprocess.run([sys.executable, "-m", "neoforge.cli", "tesla_eval",
                           "--tesla-xlsx", str(refs / "tesla" / "mmc4.xlsx"),
                           "--work-dir", str(ROOT / "work"),
-                          "--cases-dir", str(ROOT / "cases"), "--refs-dir", str(refs)])
+                          "--cases-dir", str(ROOT / "cases"), "--refs-dir", str(refs)],
+                         check=False)
     if got.returncode != 0:
         die("tesla_eval failed")
 
