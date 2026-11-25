@@ -1,4 +1,4 @@
-"""End-to-end six-stage CLI determinism check on the real case.
+"""End-to-end CLI determinism check on the real case.
 
 Runs the CLI for every stage (with a dev `--limit` on present so the suite
 stays minutes, not hours) and then reruns the downstream stages: every

@@ -72,7 +72,7 @@ def main(argv: list[str] | None = None) -> int:
         from neoforge.stages.construct import run_construct
 
         return _emit_construct(run_construct(store, args.case))
-    raise NotImplementedError(f"stage '{args.stage}' connects when implemented")
+    raise AssertionError(f"dispatch is exhaustive over STAGES; unhandled '{args.stage}'")
 
 
 def _emit_tesla(result: dict) -> int:

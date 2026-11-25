@@ -204,6 +204,6 @@ Executed against the real HCC1395/SEQC2 case (branch state at this commit):
   documented ≤5 threshold, listed in the artifact); codon table derived from
   the pinned GENCODE v46 GRCh38 CDS (38,855,269 codons; stop TGA) with its
   sha256 embedded in the artifact. FASTA export stamped in the header.
-- **Determinism:** six-stage CLI end-to-end test (`test_pipeline_e2e.py`) reruns
+- **Determinism:** CLI end-to-end test (`test_pipeline_e2e.py`) reruns
   the whole chain and requires hash-identical artifacts — passing on the real
   case, including a hash-identical report with its exportable Markdown.
