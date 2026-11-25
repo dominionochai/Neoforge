@@ -1,0 +1,78 @@
+# codon_usage_human_GRCh38_GENCODE_v46_CDS
+# Human codon usage: raw CDS codon counts, derived from the pinned GENCODE v46
+# GRCh38 protein-coding transcript set (the same reference the translate stage
+# uses for peptide derivation), so codon choice statistics and the pipeline
+# share one checksum-pinned source.
+# Method (scripts/build_codon_usage.py, deterministic): for every
+# transcript_type=protein_coding CDS in the GTF, the CDS was spliced from the
+# GRCh38 primary-assembly genome strand-aware in translation direction, in
+# frame from offset 0; transcripts with a non-zero first CDS frame (5'-
+# incomplete) were excluded entirely; the final stop codon was excluded;
+# codons containing non-ACGT bases were skipped and counted.
+# input gencode.v46.annotation.gtf.gz sha256=82b0e52bc4956486528152e3850660b3c41767ab103d87949e41d38f92ef8b38
+# input GRCh38.primary_assembly.genome.fa.gz sha256=ada8bcedcd6ed9359f56778f2430375eddd5580cc4f35b6e581b53422f7035a8
+# licence: GENCODE is distributed under Apache 2.0 (gencodegenes.org terms).
+# codon	aa	count
+AAA	K	1037862
+AAC	N	729778
+AAG	K	1266151
+AAT	N	702642
+ACA	T	616414
+ACC	T	699203
+ACG	T	223859
+ACT	T	538681
+AGA	R	488730
+AGC	S	750952
+AGG	R	453048
+AGT	S	513134
+ATA	I	303071
+ATC	I	772403
+ATG	M	863773
+ATT	I	649118
+CAA	Q	514342
+CAC	H	562037
+CAG	Q	1357091
+CAT	H	440792
+CCA	P	699447
+CCC	P	736332
+CCG	P	248530
+CCT	P	712100
+CGA	R	250689
+CGC	R	368883
+CGG	R	431390
+CGT	R	181461
+CTA	L	282364
+CTC	L	707385
+CTG	L	1455464
+CTT	L	537229
+GAA	E	1275222
+GAC	D	971109
+GAG	E	1568738
+GAT	D	926549
+GCA	A	647246
+GCC	A	1030554
+GCG	A	253811
+GCT	A	733942
+GGA	G	659576
+GGC	G	806761
+GGG	G	598621
+GGT	G	422899
+GTA	V	296516
+GTC	V	538353
+GTG	V	1044937
+GTT	V	455788
+TAC	Y	555446
+TAG	*	1
+TAT	Y	483135
+TCA	S	509851
+TCC	S	667659
+TCG	S	163668
+TCT	S	617513
+TGA	*	219
+TGC	C	437327
+TGG	W	462940
+TGT	C	397304
+TTA	L	322205
+TTC	F	724718
+TTG	L	512592
+TTT	F	675714

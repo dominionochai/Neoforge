@@ -7,7 +7,7 @@ from pathlib import Path
 from neoforge import __version__
 from neoforge.artifacts import ArtifactStore
 
-STAGES = ("ingest", "variants", "translate", "present", "prioritize", "report", "tesla_eval")
+STAGES = ("ingest", "variants", "translate", "present", "prioritize", "report", "tesla_eval", "construct")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -68,6 +68,10 @@ def main(argv: list[str] | None = None) -> int:
         from neoforge.stages.report import run_report
 
         return _emit_report(run_report(store, args.case))
+    if args.stage == "construct":
+        from neoforge.stages.construct import run_construct
+
+        return _emit_construct(run_construct(store, args.case))
     raise NotImplementedError(f"stage '{args.stage}' connects when implemented")
 
 
@@ -132,6 +136,21 @@ def _emit_selection(result: dict) -> int:
     print(f"variants: artifact {result['artifact_id']}")
     print(f"  selected {sel['selected']} of {sel['ingested_snv_records']} SNVs; "
           f"exclusions: {sel['exclusion_reasons'] or 'none'}; indels seen: {sel['indels_seen']}")
+    return 0
+
+
+def _emit_construct(result: dict) -> int:
+    p = result["payload"]
+    cs = p["case_summary"]
+    ja = p["junction_audit"]
+    print(f"construct: artifact {result['artifact_id']} [{p['layer']}, evidence={p['evidence_kind']}]")
+    print(f"  epitopes: {cs['epitopes_selected']} selected / {cs['epitopes_excluded_ledgered']} ledgered exclusions; "
+          f"alleles covered {len(cs['alleles_covered'])}/{len(cs['case_alleles'])}")
+    print(f"  protein {p['nucleotide_stats']['protein_length_aa']} aa; CDS {p['nucleotide_stats']['cds_length_nt']} nt "
+          f"(GC {p['nucleotide_stats']['gc_percent']}%); FASTA {result['fasta_path']}")
+    print(f"  junction audit: {ja['final_flagged_junction_peptides']} flagged new binders across case alleles "
+          f"({len(ja['history'])} orderings evaluated); predictor {ja['predictor']['software']}")
+    print(f"  stamp: {p['stamp']}")
     return 0
 
 
