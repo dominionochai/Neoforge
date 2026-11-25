@@ -12,6 +12,7 @@ scientific claims. Run: `python -m neoforge.export_ui --work-dir ../work \
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 
@@ -84,7 +85,8 @@ def _project_translate(tra: dict | None, record: dict, keep_keys: set[str] | Non
     }
 
 
-def _project_construct(con: dict | None, record: dict | None) -> dict | None:
+def _project_construct(con: dict | None, record: dict | None,
+                       store: ArtifactStore, case: str) -> dict | None:
     if con is None:
         return None
     i, e = con["selection_ledger"]["included"], con["selection_ledger"]["excluded"]
@@ -111,7 +113,16 @@ def _project_construct(con: dict | None, record: dict | None) -> dict | None:
         "sequence_checks": con["sequence_checks"],
         "nucleotide_stats": con["nucleotide_stats"],
         "fasta_file": f"construct_cds.{record['artifact_id']}.fasta" if record else None,
+        "fasta_sha256": _sha256_file(store.case_dir(case)
+                                     / f"construct_cds.{record['artifact_id']}.fasta")
+                       if record else None,
     }
+
+
+def _sha256_file(path: Path) -> str | None:
+    if not path.exists():
+        return None
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def export_case(store: ArtifactStore, case: str, cases_dir: Path) -> dict:
@@ -152,7 +163,7 @@ def export_case(store: ArtifactStore, case: str, cases_dir: Path) -> dict:
                                                      ("construct", con_rec)) if r},
         "case_bundle": bundle,
         "report": rep,
-        "construct": _project_construct(con, con_rec),
+        "construct": _project_construct(con, con_rec, store, case),
         "prioritize": ({"stage": "prioritize",
                         "source": f"{pri_rec['stage']}.{pri_rec['artifact_id']}.{pri_rec['sha256']}",
                         "tier_counts": pri["tier_counts"],
@@ -210,6 +221,21 @@ def export_tesla(store: ArtifactStore) -> dict | None:
     }
 
 
+def _copy_construct_fastas(store: ArtifactStore, case: str, projections_dir: Path,
+                           payload: dict) -> list[str]:
+    """Serve the construct FASTA alongside the projections so the interface can
+    offer a download; byte-identical to the artifact-store copy."""
+    con = payload.get("construct")
+    if not con:
+        return []
+    src = store.case_dir(case) / con["fasta_file"]
+    if not src.exists():
+        return []
+    dst = projections_dir / src.name
+    dst.write_bytes(src.read_bytes())
+    return [src.name]
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(prog="neoforge.export_ui")
     ap.add_argument("--work-dir", type=Path, required=True)
@@ -221,6 +247,7 @@ def main() -> int:
 
     store = ArtifactStore(args.work_dir)
     args.out.mkdir(parents=True, exist_ok=True)
+    written: set[str] = set()
     cases = args.case or sorted(p.name for p in args.cases_dir.iterdir() if p.is_dir())
     for case in cases:
         try:
@@ -230,7 +257,14 @@ def main() -> int:
             continue
         path = args.out / f"case_{case}.json"
         path.write_text(json.dumps(payload, sort_keys=True, separators=(",", ":")))
+        for fasta in _copy_construct_fastas(store, case, args.out, payload):
+            written.add(fasta)
+            print(f"export_ui: {args.out / fasta} (copy of artifact-store FASTA)")
         print(f"export_ui: {path} ({path.stat().st_size} bytes)")
+    for stale in sorted(args.out.glob("construct_cds.*.fasta")):
+        if stale.name not in written:
+            stale.unlink()
+            print(f"export_ui: removed stale {stale.name}")
     tesla = export_tesla(store)
     if tesla:
         path = args.out / "benchmark_tesla.json"

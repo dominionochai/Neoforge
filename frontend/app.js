@@ -1288,7 +1288,8 @@ function viewConstruct() {
           <dt>linkers</dt><dd>${nfmt(st.linker_count)} \u00d7 ${esc(st.linker)} (published MHC-I convention)</dd>
           <dt>signal peptide</dt><dd class="wrap small">${esc(c.parameters.signal_peptide)} \u2014 ${esc(c.parameters.signal_peptide_source)}</dd>
           <dt>trafficking tag</dt><dd class="wrap small">${esc(c.parameters.trafficking_tag)} \u2014 ${esc(c.parameters.trafficking_tag_source)}</dd>
-          <dt>FASTA export</dt><dd class="mono small">${esc(c.fasta_file)}</dd>
+          <dt>FASTA export</dt><dd><a href="data/${esc(c.fasta_file)}" download="${esc(c.fasta_file)}"><button class="controls">download .fasta</button></a>
+            <span class="mono small" title="sha256 of the served copy (byte-identical to the artifact-store file)">${esc(shortSha(c.fasta_sha256))}</span></dd>
         </dl>
       </div>
     </div>

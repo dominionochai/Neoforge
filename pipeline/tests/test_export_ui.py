@@ -205,3 +205,25 @@ def test_export_construct_is_none_until_construct_runs(mini_export) -> None:
     _store, payload = mini_export
     assert payload["construct"] is None
     assert "construct" not in payload["pipeline_stage_records"]
+
+
+def test_export_fasta_projection_matches_store_copy(tmp_path) -> None:
+    import hashlib
+
+    store = _construct_chain(tmp_path)
+    cases_dir = tmp_path / "cases" / "mini"
+    cases_dir.mkdir(parents=True)
+    (cases_dir / "case.json").write_text('{"case_id": "mini"}')
+    out_dir = tmp_path / "ui"
+    out_dir.mkdir()
+
+    from neoforge.export_ui import main as export_main
+    import neoforge.export_ui as ex
+    payload = ex.export_case(store, "mini", tmp_path / "cases")
+    copied = ex._copy_construct_fastas(store, "mini", out_dir, payload)
+    assert copied == [payload["construct"]["fasta_file"]]
+    fasta = out_dir / copied[0]
+    assert hashlib.sha256(fasta.read_bytes()).hexdigest() == payload["construct"]["fasta_sha256"]
+    body = fasta.read_text().splitlines()
+    assert body[0].startswith(">mini_") and "research design" in body[0]
+    assert len("".join(body[1:])) == payload["construct"]["nucleotide_stats"]["cds_length_nt"]
