@@ -18,13 +18,19 @@ with a transparent, evidence-backed rule set that judges can inspect.
 - The construct stage produces a **research-only in-silico design**, stamped
   "research design, not a manufacturable or validated sequence" — not a
   vaccine, not a validated sequence, no simulated mRNA chemistry.
+- The structure stage is a **sequence-derived propensity annotation** of that
+  design (pinned Chou–Fasman 1978 parameters), explicitly not a 3-D model and
+  not validated against any experimental structure.
 
 ## Architecture
 
 - `pipeline/` — `neoforge` Python package; stages `ingest → variants →
   translate → present → prioritize → report`, plus the stage-7 `construct`
   design layer (research-only in-silico polyepitope design: ledgered selection,
-  MHC-I linkers, junction audit, pinned-codon back-translation); immutable
+  MHC-I linkers, junction audit, pinned-codon back-translation) and the
+  stage-8 `structure` annotation layer (residue-level secondary-structure
+  propensity of the design, from pinned published parameters — derived, not
+  predicted and not measured); immutable
   content-hashed JSON artifacts with full provenance (`docs/SCIENTIFIC_DESIGN.md`).
   Includes `neoforge/maf.py` (GDC masked-MAF ingest with a single-patient
   barcode gate) and `neoforge/evaluation/tesla.py` (L4 benchmark harness).
@@ -84,11 +90,13 @@ preflight fails with that exact remediation instead of a mid-pipeline traceback.
 | L3 predicted presentation | MHCflurry scores | correct-use tests; predictor cited, not ours |
 | L4 ranking-rule audit | TESLA experimental labels | executed — cohort level, never case-level |
 
-`hcc1395` runs the full chain (L1+L2+L3) plus the stage-7 construct design.
+`hcc1395` runs the full chain (L1+L2+L3) plus the stage-7 construct design
+and its stage-8 structure annotation.
 `skcm_d9a3z1` demonstrates the honest boundary: no same-patient HLA genotype
 exists in the open GDC tier, so the chain mechanically stops after L2 — and
-the construct stage refuses mechanically on any chain that stops before L3 —
-and the interface says so instead of inventing predictions.
+the construct stage refuses mechanically on any chain that stops before L3
+(and so does structure) — and the interface says so instead of inventing
+predictions.
 
 See `docs/EVALUATION_PLAN.md` for metrics, baselines and falsification
 criteria, and `frontend/README.md` for the interface's data contract.

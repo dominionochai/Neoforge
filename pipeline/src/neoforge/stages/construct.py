@@ -567,6 +567,7 @@ def run_construct(store: ArtifactStore, case: str, *,
                          "case_alleles": case_alleles,
                          "alleles_covered": sorted({e["allele"] for e in final_epitopes}),
                          "genes_covered": sorted({e["gene_id"] for e in final_epitopes})},
+        "protein": protein,
         "selection_ledger": {"included": final_epitopes, "excluded": excluded},
         "junction_audit": {
             "predictor": {"software": j_version, "provenance": j_provenance[:80]},

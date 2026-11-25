@@ -127,6 +127,37 @@ this stage, ever: expression, folding, trafficking, immunogenicity or safety of
 a designed sequence. Those require wet-lab data we do not have and do not
 simulate.
 
+## Stage 8 — structure: sequence-derived propensity annotation (validation PENDING)
+
+**What the stage is:** per-residue secondary-structure propensity labels of
+the Stage-7 designed protein (alpha-helix / beta-sheet / coil), computed as a
+fixed, documented rule (truncated centred 6-residue windowed means, argmax,
+fixed tie-break) over the published Chou–Fasman (1978) conformational
+parameters, which are pinned as package data (`neoforge/data/
+chou_fasman_1978.csv`, sha256 recorded in the artifact). Every artifact
+carries "sequence-derived propensity ... not a measured or model-predicted
+3-D structure" and an explicit non-claims list.
+
+**What is verifiable here:** the arithmetic is unit-tested (pinned parameter
+digest, extreme-sequence sanity: poly-A → helix, poly-V → sheet, poly-P →
+coil), deterministic (hash-identical reruns), and refuses mechanically
+without a construct artifact or on residues outside the 20-amino-acid table.
+Executed on the real HCC1395 design (artifact `71bcb9b81de60bfd`):
+205 residues labelled — 105 H, 80 E, 20 C — from the same 205-aa design.
+
+**Expected limitation & honesty note:** Chou–Fasman parameters are 1970s
+statistics from ~15/29-protein globular sets, not polyepitope vaccine
+strings; propensity ≠ conformation; linkers inherit the same treatment
+though their fate is proteolytic processing that is not simulated.
+
+**Falsification / validation path:** if a planned comparison to an
+experimental structure (e.g. available PDB structures of the component
+epitopes' source proteins) shows the labels track chance, the annotation is
+falsified as information-free and the stage must say so or be withdrawn.
+Until that comparison is executed, the artifact and interface state
+**validation PENDING** — and the interface never renders the strip as a
+structure prediction.
+
 ## Compute determinism
 
 Full rerun-from-artifacts test: identical inputs → identical SHA-256s on all
@@ -189,7 +220,7 @@ Executed against the real HCC1395/SEQC2 case (branch state at this commit):
  version transcript-model drift, recorded, not hidden) and **0 contradictions
  of the substitution itself**; encoded in `test_real_case.py::…skcm…hgvsp…`.
 - **Stage 7 construct (design layer), executed on the real HCC1395 chain**
-  (artifact `7ec0e5f6853830b8`, hammer-rerun verified hash-identical; SKCM
+  (artifact `74c56d8979bef0b9`, hammer-rerun verified hash-identical; SKCM
   refused mechanically — "chain stopped before present"): of 329 candidate
   mutations, 80 Tier A → **15 epitopes selected** (documented cap; slider
   defaults) with **314 ledgered exclusions (249 not_tier_A + 55

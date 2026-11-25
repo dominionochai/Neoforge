@@ -34,7 +34,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 CASES = ("hcc1395", "skcm_d9a3z1")
-HCC_STAGES = ("ingest", "variants", "translate", "present", "prioritize", "construct", "report")
+HCC_STAGES = ("ingest", "variants", "translate", "present", "prioritize", "construct", "structure", "report")
 SKCM_STAGES = ("ingest", "variants", "translate")  # honestly stops at L2: no HLA genotype
 FRONTEND_DATA = ROOT / "frontend" / "data"
 

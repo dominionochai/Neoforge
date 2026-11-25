@@ -7,7 +7,7 @@ from pathlib import Path
 from neoforge import __version__
 from neoforge.artifacts import ArtifactStore
 
-STAGES = ("ingest", "variants", "translate", "present", "prioritize", "report", "tesla_eval", "construct")
+STAGES = ("ingest", "variants", "translate", "present", "prioritize", "report", "tesla_eval", "construct", "structure")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -27,7 +27,7 @@ def main(argv: list[str] | None = None) -> int:
     elif not args.case:
         ap.error(f"--case is required for stage '{args.stage}'")
 
-    from neoforge.stages.ingest import run_ingest  # noqa: PLC0415 — stages import lazily
+    from neoforge.stages.ingest import run_ingest  # stages import lazily
 
     store = ArtifactStore(args.work_dir)
     if args.stage == "tesla_eval":
@@ -72,7 +72,22 @@ def main(argv: list[str] | None = None) -> int:
         from neoforge.stages.construct import run_construct
 
         return _emit_construct(run_construct(store, args.case))
+    if args.stage == "structure":
+        from neoforge.stages.structure import run_structure
+
+        return _emit_structure(run_structure(store, args.case))
     raise AssertionError(f"dispatch is exhaustive over STAGES; unhandled '{args.stage}'")
+
+
+def _emit_structure(result: dict) -> int:
+    p = result["payload"]
+    print(f"structure: artifact {result['artifact_id']} [{p['layer']}, evidence={p['evidence_kind']}]")
+    counts = p["summary"]["label_counts"]
+    print(f"  {p['protein_length_aa']} residues annotated: helix {counts['H']}, "
+          f"sheet {counts['E']}, coil {counts['C']} ({p['parameters']['window_detail']})")
+    print(f"  {p['stamp']}")
+    print(f"  validation: {p['validation_status']} - {p['validation_note']}")
+    return 0
 
 
 def _emit_tesla(result: dict) -> int:

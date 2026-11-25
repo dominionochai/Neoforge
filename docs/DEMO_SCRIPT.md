@@ -57,8 +57,12 @@ Quick non-claims banner, then a pipeline map that doubles as dashboard nav.
   linkers, flagged junctions), the full selection ledger (included epitopes
   and every exclusion with its documented reason), the junction audit (which
   8-11-mers spanning the joins create newly flagged strong binders across
-  case alleles, and how ordering improved), and the back-transcription stats
-  (codon table hash, GC content, homopolymer and restriction-site checks).
+  case alleles, and how ordering improved), the back-transcription stats
+  (codon table hash, GC content, homopolymer and restriction-site checks), and
+  the secondary-structure propensity strip: every residue of the design
+  labelled from pinned published Chou-Fasman (1978) parameters - a
+  sequence-derived annotation, never a 3-D model, shown with its own
+  "validation PENDING" state.
 - Question answered: **what would the construct look like, reductively - and
   what does the software refuse to claim about it?** The artifact, FASTA and
   screen are all stamped "research design, not a manufacturable or validated
@@ -70,7 +74,8 @@ Quick non-claims banner, then a pipeline map that doubles as dashboard nav.
   where human expertise and the laboratory take over.
 - Mentions the honest gaps: human-HLA vs canine-DLA (no canine predictor is
   integrated, and faithful canine cases are refused rather than imputed),
-  protein structure modelling deferred, and everything downstream of design
+  protein structure handled only as sequence-derived propensity annotation
+  (no 3-D modelling, no structure validation yet), and everything downstream of design
   (review, manufacture, administration) is outside the software by rule.
 
 ## What is deliberately NOT in the demo

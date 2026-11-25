@@ -36,7 +36,7 @@ LIMIT = 2000
 def run_all(work: Path) -> bool:
     construct_ran = True
     for stage in ("ingest", "variants", "translate", "present", "prioritize",
-                  "construct", "report"):
+                  "construct", "structure", "report"):
         argv = [stage, "--case", "hcc1395", "--work-dir", str(work),
                 "--cases-dir", str(CASES_DIR), "--refs-dir", str(REFS)]
         if stage == "present":
@@ -44,8 +44,9 @@ def run_all(work: Path) -> bool:
         try:
             rc = main(argv)
         except ArtifactChainError:
-            if stage == "construct":
-                construct_ran = False
+            if stage in ("construct", "structure"):
+                if stage == "construct":
+                    construct_ran = False
                 continue
             raise
         assert rc == 0, f"CLI {stage} failed"
@@ -62,7 +63,7 @@ def test_pipeline_end_to_end_is_deterministic(tmp_path: Path) -> None:
     m2 = second_store.read_manifest("hcc1395")["stages"]
     stages = ("ingest", "variants", "translate", "present", "prioritize", "report")
     if ran1:
-        stages = stages[:-1] + ("construct", "report")
+        stages = stages[:-1] + ("construct", "structure", "report")
     elif "construct" in m1 or "construct" in m2:
         pytest.fail("construct run flag says refused but a construct artifact exists")
     for stage in stages:

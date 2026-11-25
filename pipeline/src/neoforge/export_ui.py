@@ -120,6 +120,28 @@ def _project_construct(con: dict | None, record: dict | None,
     }
 
 
+def _project_structure(st: dict | None, record: dict | None) -> dict | None:
+    if st is None:
+        return None
+    return {
+        "stage": "structure",
+        "source": (f"structure.{record['artifact_id']}.{record['sha256']}"
+                   if record else "structure artifact"),
+        "layer": st["layer"],
+        "evidence_kind": st["evidence_kind"],
+        "stamp": st["stamp"],
+        "non_claims": st["non_claims"],
+        "parameters": st["parameters"],
+        "validation_status": st["validation_status"],
+        "validation_note": st["validation_note"],
+        "protein_length_aa": st["protein_length_aa"],
+        "summary": st["summary"],
+        "uncertainty_register": st["uncertainty_register"],
+        "propensity_table": st["propensity_table"],
+        "inputs": st["inputs"],
+    }
+
+
 def _sha256_file(path: Path) -> str | None:
     if not path.exists():
         return None
@@ -136,6 +158,7 @@ def export_case(store: ArtifactStore, case: str, cases_dir: Path) -> dict:
     pri, pri_rec = _load(store, case, "prioritize")
     rep, rep_rec = _load(store, case, "report")
     con, con_rec = _load(store, case, "construct")
+    stt, stt_rec = _load(store, case, "structure")
 
     bundle = json.loads((cases_dir / case / "case.json").read_text())
     shortlist_keys = set(_shortlist_keys(rep, pri))
@@ -161,10 +184,11 @@ def export_case(store: ArtifactStore, case: str, cases_dir: Path) -> dict:
         "pipeline_stage_records": {s: r for s, r in (("ingest", ing_rec), ("variants", var_rec),
                                                      ("translate", tra_rec), ("present", pre_rec),
                                                      ("prioritize", pri_rec), ("report", rep_rec),
-                                                     ("construct", con_rec)) if r},
+                                                     ("construct", con_rec), ("structure", stt_rec)) if r},
         "case_bundle": bundle,
         "report": rep,
         "construct": _project_construct(con, con_rec, store, case),
+        "structure": _project_structure(stt, stt_rec),
         "prioritize": ({"stage": "prioritize",
                         "source": f"{pri_rec['stage']}.{pri_rec['artifact_id']}.{pri_rec['sha256']}",
                         "tier_counts": pri["tier_counts"],
